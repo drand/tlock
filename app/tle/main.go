@@ -12,6 +12,13 @@ import (
 
 /*
 	- Hardcoding default network values in parseFlag.
+
+	* Get basic decrypt and encrypt code working in side program.
+	* Get round and duration based logic built into side program.
+	* Integrate that code into main cli tooling.
+		* Write encrypt and decrypt function.
+		* Better flag validation.
+	* Write basic unit tests and figure out best way to test.
 */
 
 const usage = `USAGE:
