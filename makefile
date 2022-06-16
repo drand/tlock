@@ -3,8 +3,8 @@ SHELL := /bin/bash
 # ==============================================================================
 # Local support
 
-build:
-	go build app/tle/main.go
+run-throw:
+	go run app/throwaway/main.go
 
 run:
 	go run app/tle/main.go
