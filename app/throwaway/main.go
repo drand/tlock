@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	dhttp "github.com/drand/drand/client/http"
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/encrypt/ibe"
@@ -51,8 +52,7 @@ func main() {
 	// 	  "beaconID": "testnet-unchained-3s"
 	// 	}
 	//   }
-	i, err := httpClient.Info(context.Background())
-	if err != nil {
+	if _, err := httpClient.Info(context.Background()); err != nil {
 		fmt.Println("client info error:", err)
 		return
 	}
