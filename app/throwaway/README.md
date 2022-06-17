@@ -25,5 +25,5 @@ It will return the latest one available.
 
 When the round is available you will be able to decrypt the file and get this message in your terminal:
 ```
-Message: Secret message
+Message: Here is the data
 ``` 
