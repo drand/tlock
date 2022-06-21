@@ -26,35 +26,38 @@ import (
 // 	"http://pl-us.testnet.drand.sh/",
 // }
 
-var chainHash, _ = hex.DecodeString("7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf")
-
 func encrypt(httpClient client.Client, duration time.Duration, message []byte, suite pairing.Suite, publicKey kyber.Point) error {
+
 	// We need to get the future round number based on the duration.
-	// The following call will do the required calculations based on the network `period` property,
-	// and return a uint64 representing the round number in the future.
-	// This round number is used to encrypt the data and will also be used by the dectypt function.
+	// The following call will do the required calculations based on the network
+	// `period` property, and return a uint64 representing the round number in the
+	// future. This round number is used to encrypt the data and will also be used
+	// by the dectypt function.
 	round := httpClient.RoundAt(time.Now().Add(duration))
 
 	// I am printing it to the termin so we can test the decryption call by updating the round number.
 	fmt.Println("Future round to use for decryption: ", round)
 
-	futureID := GetFutureRound(round)
+	futureID, err := GetFutureRound(round)
+	if err != nil {
+		return fmt.Errorf("get future round: %w", err)
+	}
 
 	// This call to Encryption will return a Ciphertext containing the data to store in the file.
 	encryptedData, err := ibe.Encrypt(suite, publicKey, futureID, message)
 	if err != nil {
-		return fmt.Errorf("ibe.Encrypt error: %s", err)
+		return fmt.Errorf("ibe.Encrypt: %w", err)
 	}
 
 	// The Ciphertext.U is a kyber point, and we have to call MarshalBinary to get a []byte.
 	pointdata, err := encryptedData.U.MarshalBinary()
 	if err != nil {
-		return fmt.Errorf("marshal binary error: %s", err)
+		return fmt.Errorf("marshal binary: %w", err)
 	}
 
 	f, err := os.OpenFile("encryptedData", os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("open file error: %s", err)
+		return fmt.Errorf("open file: %w", err)
 	}
 	defer f.Close()
 
@@ -84,9 +87,9 @@ func decrypt(httpClient client.Client, futureRound uint64, suite pairing.Suite, 
 	fW, _ := base64.StdEncoding.DecodeString(fdata[2])
 
 	// We have to re-create the kyber point, using Group1 (Ciphertext.U property)
-	g1 := bls.KyberG1{}
+	var g1 bls.KyberG1
 	if err := g1.UnmarshalBinary(fP); err != nil {
-		return fmt.Errorf("UnmarshalBinary KyberG1 error: %s", err)
+		return fmt.Errorf("UnmarshalBinary KyberG1: %w", err)
 	}
 
 	// Re-create the Ciphertext with the data from the file
@@ -100,19 +103,19 @@ func decrypt(httpClient client.Client, futureRound uint64, suite pairing.Suite, 
 	// If it does not exist yet, it will return an EOF error (HTTP 404)
 	roundData, err := httpClient.Get(context.Background(), futureRound)
 	if err != nil {
-		return fmt.Errorf("client get error: %s", err)
+		return fmt.Errorf("client get: %w", err)
 	}
 
 	// If we can get the data from the future round above,
 	// we need to create another kyber point but this time, using Group2.
-	g2 := bls.KyberG2{}
+	var g2 bls.KyberG2
 	if err := g2.UnmarshalBinary(roundData.Signature()); err != nil {
-		return fmt.Errorf("UnmarshalBinary error: %s", err)
+		return fmt.Errorf("UnmarshalBinary: %w", err)
 	}
 
 	decryptedData, err := ibe.Decrypt(suite, publicKey, &g2, &newCipherText)
 	if err != nil {
-		return fmt.Errorf("ibe.Decrypt error: %s", err)
+		return fmt.Errorf("ibe.Decrypt: %w", err)
 	}
 
 	fmt.Println("Message:", string(decryptedData))
@@ -120,8 +123,11 @@ func decrypt(httpClient client.Client, futureRound uint64, suite pairing.Suite, 
 	return nil
 }
 
+var chainHash, _ = hex.DecodeString("7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf")
+
 func main() {
-	// Using Drand http client implementation
+
+	// Using Drand http client implementation.
 	httpClient, err := dhttp.New("http://pl-us.testnet.drand.sh/", chainHash, http.DefaultTransport)
 	if err != nil {
 		fmt.Println("client error:", err)
@@ -141,7 +147,8 @@ func main() {
 	// 	  "beaconID": "testnet-unchained-3s"
 	// 	}
 	//   }
-	i, err := httpClient.Info(context.Background())
+
+	inf, err := httpClient.Info(context.Background())
 	if err != nil {
 		fmt.Println("client info error:", err)
 		return
@@ -156,7 +163,7 @@ func main() {
 	// ENCRYPT ===========================================
 
 	// Inform the duration manually.
-	if err := encrypt(httpClient, 30*time.Second, []byte(`Here is the data`), suite, i.PublicKey); err != nil {
+	if err := encrypt(httpClient, 30*time.Second, []byte(`Here is the data`), suite, inf.PublicKey); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -165,17 +172,20 @@ func main() {
 
 	// // Inform the number of the future round manually
 	// // It was generated and printed to the stdout when running encrypt
-	// if err := decrypt(httpClient, 1273234, suite, i.PublicKey); err != nil {
+	// if err := decrypt(httpClient, 1273234, suite, inf.PublicKey); err != nil {
 	// 	fmt.Println(err)
 	// 	return
 	// }
 }
 
-// GetFutureRoudn will generate a sha256 representing the future round number.
+// GetFutureRound will generate a sha256 representing the future round number.
 // This value is used to encrypt data.
 // The future round signature is captured when the round number becomes available.
-func GetFutureRound(round uint64) []byte {
+func GetFutureRound(round uint64) ([]byte, error) {
 	h := sha256.New()
-	_, _ = h.Write(chain.RoundToBytes(round))
-	return h.Sum(nil)
+	_, err := h.Write(chain.RoundToBytes(round))
+	if err != nil {
+		return nil, fmt.Errorf("sha256 write: %w", err)
+	}
+	return h.Sum(nil), err
 }
