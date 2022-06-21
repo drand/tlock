@@ -9,6 +9,14 @@ run-throw:
 run:
 	go run app/tle/main.go
 
+docker-build:
+	docker build \
+		-f zarf/docker/Dockerfile \
+		-t local-drand \
+		zarf/docker
+
+docker-run:
+	docker run --rm -p 5101:5101 local-drand
 
 # ==============================================================================
 # Modules support
