@@ -193,7 +193,7 @@ func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, network strin
 	cv := base64.StdEncoding.EncodeToString(cipher.V)
 	cw := base64.StdEncoding.EncodeToString(cipher.W)
 
-	if _, err := fmt.Fprintf(dst, "%s.%s.%s.%s.%s.%s", rn, nt, ch, kp, cv, cw); err != nil {
+	if _, err := fmt.Fprintf(dst, "%s\n%s\n%s\n%s\n%s\n%s", rn, nt, ch, kp, cv, cw); err != nil {
 		return fmt.Errorf("writing encrypted message: %w", err)
 	}
 
@@ -217,7 +217,7 @@ func decode(src io.Reader) (decodeInfo, error) {
 		return decodeInfo{}, fmt.Errorf("reading encrypted data: %w", err)
 	}
 
-	parts := strings.Split(string(encryptedData), ".")
+	parts := strings.Split(string(encryptedData), "\n")
 	if len(parts) != 6 {
 		return decodeInfo{}, fmt.Errorf("invalid encrypted data: parts %d: %w", len(parts), err)
 	}
