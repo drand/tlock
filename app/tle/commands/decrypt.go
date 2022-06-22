@@ -15,7 +15,7 @@ func Decrypt(ctx context.Context, flags Flags, dataToDecrypt io.Reader) error {
 		return err
 	}
 
-	// Printing data to stdout for now
+	// Printing data to stdout for now.
 	fmt.Println(string(data))
 
 	return nil
