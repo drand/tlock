@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -8,8 +10,18 @@ import (
 )
 
 // Encrypt performs the encryption operation.
-func Encrypt(d *drnd.Drnd, w io.Writer, r io.Reader, duration time.Duration, armor bool) error {
+func Encrypt(flags Flags, dst io.Writer, dataToEncrypt io.Reader) error {
 
-	// Ignoring the armor parameter for now
-	return d.Encrypt(w, r, duration)
+	dur, err := time.ParseDuration(flags.DurationFlag)
+	if err != nil {
+		return fmt.Errorf("parse duration: %w", err)
+	}
+
+	config := drnd.Config{
+		Network:   flags.NetworkFlag[0],
+		ChainHash: flags.ChainFlag,
+		Duration:  dur,
+	}
+
+	return drnd.Encrypt(context.Background(), config, dst, dataToEncrypt)
 }

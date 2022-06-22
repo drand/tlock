@@ -50,12 +50,12 @@ func Encrypt(ctx context.Context, cfg Config, dst io.Writer, dataToEncrypt io.Re
 		return fmt.Errorf("reading input data: %w", err)
 	}
 
-	chipher, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundIDHash, inputData)
+	cipher, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundIDHash, inputData)
 	if err != nil {
 		return fmt.Errorf("encrypt: %w", err)
 	}
 
-	if err := encode(dst, chipher, roundID, cfg.Network, cfg.ChainHash); err != nil {
+	if err := encode(dst, cipher, roundID, cfg.Network, cfg.ChainHash); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 
@@ -101,8 +101,8 @@ func Decrypt(ctx context.Context, dataToDecrypt io.Reader) ([]byte, error) {
 
 	newCipherText := ibe.Ciphertext{
 		U: &g1,
-		V: di.chipherV,
-		W: di.chipherW,
+		V: di.cipherV,
+		W: di.cipherW,
 	}
 
 	decryptedData, err := ibe.Decrypt(suite, ni.chain.PublicKey, &g2, &newCipherText)
@@ -186,8 +186,8 @@ func calculateRound(duration time.Duration, ni networkInfo) (roundIDHash []byte,
 }
 
 // encode the meta data and encrypted data to the destination.
-func encode(dst io.Writer, chipher *ibe.Ciphertext, roundID uint64, network string, chainHash string) error {
-	kyberPoint, err := chipher.U.MarshalBinary()
+func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, network string, chainHash string) error {
+	kyberPoint, err := cipher.U.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("marshal binary: %w", err)
 	}
@@ -196,10 +196,10 @@ func encode(dst io.Writer, chipher *ibe.Ciphertext, roundID uint64, network stri
 	nt := network
 	ch := chainHash
 	kp := base64.StdEncoding.EncodeToString(kyberPoint)
-	cv := base64.StdEncoding.EncodeToString(chipher.V)
-	cw := base64.StdEncoding.EncodeToString(chipher.W)
+	cv := base64.StdEncoding.EncodeToString(cipher.V)
+	cw := base64.StdEncoding.EncodeToString(cipher.W)
 
-	if _, err := fmt.Fprintf(dst, "%s.%s.%s.%s.%s.%s", rn, ch, nt, kp, cv, cw); err != nil {
+	if _, err := fmt.Fprintf(dst, "%s.%s.%s.%s.%s.%s", rn, nt, ch, kp, cv, cw); err != nil {
 		return fmt.Errorf("writing encrypted message: %w", err)
 	}
 
@@ -212,8 +212,8 @@ type decodeInfo struct {
 	network    string
 	chainHash  string
 	kyberPoint []byte
-	chipherV   []byte
-	chipherW   []byte
+	cipherV    []byte
+	cipherW    []byte
 }
 
 // decode the encrypted data into its different parts.
@@ -241,12 +241,12 @@ func decode(src io.Reader) (decodeInfo, error) {
 		return decodeInfo{}, fmt.Errorf("decoding kyber point: %w", err)
 	}
 
-	chipherV, err := base64.StdEncoding.DecodeString(parts[4])
+	cipherV, err := base64.StdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return decodeInfo{}, fmt.Errorf("decoding cipher v: %w", err)
 	}
 
-	chipherW, err := base64.StdEncoding.DecodeString(parts[5])
+	cipherW, err := base64.StdEncoding.DecodeString(parts[5])
 	if err != nil {
 		return decodeInfo{}, fmt.Errorf("decoding cipher w: %w", err)
 	}
@@ -256,8 +256,8 @@ func decode(src io.Reader) (decodeInfo, error) {
 		network:    network,
 		chainHash:  chainHash,
 		kyberPoint: kyberPoint,
-		chipherV:   chipherV,
-		chipherW:   chipherW,
+		cipherV:    cipherV,
+		cipherW:    cipherW,
 	}
 
 	return di, nil

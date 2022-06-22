@@ -1,17 +1,13 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/drand/tlock/app/tle/commands"
-	"github.com/drand/tlock/foundation/drnd"
 )
 
 /*
@@ -40,35 +36,6 @@ OPTIONS:
 
 // =============================================================================
 
-// multiFlag provides multi-flag value support.
-type multiFlag []string
-
-// String implements the flag.Value interface.
-func (f *multiFlag) String() string {
-	return fmt.Sprint(*f)
-}
-
-// Set implements the flag.Value interface. Pointer semantics are being
-// used to support the mutation of the slice since length is unknown.
-func (f *multiFlag) Set(value string) error {
-	*f = append(*f, value)
-	return nil
-}
-
-// flags represent the values from the command line.
-type flags struct {
-	encryptFlag  bool
-	decryptFlag  bool
-	networkFlag  multiFlag
-	chainFlag    string
-	roundFlag    int
-	durationFlag string
-	outputFlag   string
-	armorFlag    bool
-}
-
-// =============================================================================
-
 func main() {
 	log := log.New(os.Stderr, "", 0)
 
@@ -84,107 +51,74 @@ func main() {
 
 func run(log *log.Logger) error {
 	flags := parseFlags()
-	if err := validateFlags(flags); err != nil {
+	if err := commands.ValidateFlags(flags); err != nil {
 		return err
 	}
 
-	dur, err := time.ParseDuration(flags.durationFlag)
-	if err != nil {
-		return fmt.Errorf("-D/--duration must be a string with a duration format; Default 120d")
-	}
-
-	var r io.Reader = os.Stdin
-	var w io.Writer = os.Stdout
-
+	var dataToEncrypt io.Reader = os.Stdin
 	if name := flag.Arg(0); name != "" && name != "-" {
 		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open input file %q: %v", name, err)
 		}
 		defer f.Close()
-		r = f
+		dataToEncrypt = f
 	}
 
-	if name := flags.outputFlag; name != "" && name != "-" {
-		f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY, os.ModeAppend)
+	var dst io.Writer = os.Stdout
+	if name := flags.OutputFlag; name != "" && name != "-" {
+		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
-		w = f
-	}
-
-	drnd, err := drnd.New(context.Background(), flags.networkFlag[0], flags.chainFlag, http.DefaultTransport)
-	if err != nil {
-		return fmt.Errorf("failed to create Drand client: %w", err)
+		dst = f
 	}
 
 	switch {
-	case flags.decryptFlag:
-		return commands.Decrypt(flags, w, r)
+	case flags.DecryptFlag:
+		return commands.Decrypt(flags, dst, dataToEncrypt)
 	default:
-		return commands.Encrypt(flags, w, r)
+		return commands.Encrypt(flags, dst, dataToEncrypt)
 	}
 }
 
 // parseFlags will parse all the command line flags. If any parse fails, the
 // default behavior is to terminate the program.
-func parseFlags() flags {
+func parseFlags() commands.Flags {
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
-	var f flags
+	var f commands.Flags
 
-	flag.BoolVar(&f.encryptFlag, "e", false, "encrypt the input to the output")
-	flag.BoolVar(&f.encryptFlag, "encrypt", false, "encrypt the input to the output")
+	flag.BoolVar(&f.EncryptFlag, "e", false, "encrypt the input to the output")
+	flag.BoolVar(&f.EncryptFlag, "encrypt", false, "encrypt the input to the output")
 
-	flag.BoolVar(&f.decryptFlag, "d", false, "decrypt the input to the output")
-	flag.BoolVar(&f.decryptFlag, "decrypt", false, "decrypt the input to the output")
+	flag.BoolVar(&f.DecryptFlag, "d", false, "decrypt the input to the output")
+	flag.BoolVar(&f.DecryptFlag, "decrypt", false, "decrypt the input to the output")
 
-	flag.Var(&f.networkFlag, "n", "the drand API endpoint(s)")
-	flag.Var(&f.networkFlag, "network", "the drand API endpoint(s)")
+	flag.Var(&f.NetworkFlag, "n", "the drand API endpoint(s)")
+	flag.Var(&f.NetworkFlag, "network", "the drand API endpoint(s)")
 
-	flag.StringVar(&f.chainFlag, "c", "", "chain to use")
-	flag.StringVar(&f.chainFlag, "chain", "", "chain to use")
+	flag.StringVar(&f.ChainFlag, "c", "", "chain to use")
+	flag.StringVar(&f.ChainFlag, "chain", "", "chain to use")
 
-	flag.IntVar(&f.roundFlag, "r", 0, "the specific round to use; cannot be used with --duration")
-	flag.IntVar(&f.roundFlag, "round", 0, "the specific round to use; cannot be used with --duration")
+	flag.IntVar(&f.RoundFlag, "r", 0, "the specific round to use; cannot be used with --duration")
+	flag.IntVar(&f.RoundFlag, "round", 0, "the specific round to use; cannot be used with --duration")
 
-	flag.StringVar(&f.durationFlag, "D", "", "how long to wait before being able to decrypt")
-	flag.StringVar(&f.durationFlag, "duration", "", "how long to wait before being able to decrypt")
+	flag.StringVar(&f.DurationFlag, "D", "", "how long to wait before being able to decrypt")
+	flag.StringVar(&f.DurationFlag, "duration", "", "how long to wait before being able to decrypt")
 
-	flag.StringVar(&f.outputFlag, "o", "", "the path to the output file")
-	flag.StringVar(&f.outputFlag, "output", "", "the path to the output file")
+	flag.StringVar(&f.OutputFlag, "o", "", "the path to the output file")
+	flag.StringVar(&f.OutputFlag, "output", "", "the path to the output file")
 
-	flag.BoolVar(&f.armorFlag, "a", false, "encrypt to a PEM encoded format")
-	flag.BoolVar(&f.armorFlag, "armor", false, "encrypt to a PEM encoded format")
+	flag.BoolVar(&f.ArmorFlag, "a", false, "encrypt to a PEM encoded format")
+	flag.BoolVar(&f.ArmorFlag, "armor", false, "encrypt to a PEM encoded format")
 
 	flag.Parse()
 
-	if len(f.networkFlag) == 0 {
-		f.networkFlag.Set("https://mainnet1-api.drand.cloudflare.com/")
-		f.networkFlag.Set("https://api.drand.sh/")
+	if len(f.NetworkFlag) == 0 {
+		f.NetworkFlag.Set("https://mainnet1-api.drand.cloudflare.com/")
+		f.NetworkFlag.Set("https://api.drand.sh/")
 	}
 
 	return f
-}
-
-// validateFlags performs a sanity check of the provided flag information.
-func validateFlags(f flags) error {
-	switch {
-	case f.decryptFlag:
-		if f.encryptFlag {
-			return fmt.Errorf("-e/--encrypt can't be used with -d/--decrypt")
-		}
-		if f.armorFlag {
-			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
-		}
-		if f.durationFlag != "" {
-			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
-		}
-	}
-
-	if f.roundFlag < 0 {
-		return fmt.Errorf("-r/--round should be a positive integer")
-	}
-
-	return nil
 }
