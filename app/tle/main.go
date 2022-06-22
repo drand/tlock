@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/drand/tlock/app/tle/commands"
 )
@@ -72,14 +73,17 @@ func run(log *log.Logger) error {
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
+		defer f.Close()
 		dst = f
 	}
 
-	var ctx context.Context
+	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
 	switch {
 	case flags.DecryptFlag:
-		return commands.Decrypt(flags, dst, dataToEncrypt)
+		return commands.Decrypt(ctx, flags, dataToEncrypt)
 	default:
 		return commands.Encrypt(ctx, flags, dst, dataToEncrypt)
 	}
