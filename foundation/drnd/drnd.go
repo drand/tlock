@@ -21,21 +21,15 @@ import (
 	"github.com/drand/kyber/pairing"
 )
 
-type Config struct {
-	Network   string
-	ChainHash string
-	Duration  time.Duration
-}
-
 // Encrypt will encrypt the message to be decrypted in the future based on the
 // specified duration.
-func Encrypt(ctx context.Context, cfg Config, dst io.Writer, dataToEncrypt io.Reader) error {
-	ni, err := retrieveNetworkInfo(ctx, cfg.Network, cfg.ChainHash)
+func Encrypt(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, network string, chainHash string, duration time.Duration) error {
+	ni, err := retrieveNetworkInfo(ctx, network, chainHash)
 	if err != nil {
 		return fmt.Errorf("network info: %w", err)
 	}
 
-	roundIDHash, roundID, err := calculateRound(cfg.Duration, ni)
+	roundIDHash, roundID, err := calculateRound(duration, ni)
 	if err != nil {
 		return fmt.Errorf("calculate future round: %w", err)
 	}
@@ -55,7 +49,7 @@ func Encrypt(ctx context.Context, cfg Config, dst io.Writer, dataToEncrypt io.Re
 		return fmt.Errorf("encrypt: %w", err)
 	}
 
-	if err := encode(dst, cipher, roundID, cfg.Network, cfg.ChainHash); err != nil {
+	if err := encode(dst, cipher, roundID, network, chainHash); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 

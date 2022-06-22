@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -74,11 +75,13 @@ func run(log *log.Logger) error {
 		dst = f
 	}
 
+	var ctx context.Context
+
 	switch {
 	case flags.DecryptFlag:
 		return commands.Decrypt(flags, dst, dataToEncrypt)
 	default:
-		return commands.Encrypt(flags, dst, dataToEncrypt)
+		return commands.Encrypt(ctx, flags, dst, dataToEncrypt)
 	}
 }
 
