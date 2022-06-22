@@ -120,9 +120,9 @@ func run(log *log.Logger) error {
 
 	switch {
 	case flags.decryptFlag:
-		return commands.Decrypt(drnd, w, r)
+		return commands.Decrypt(flags, w, r)
 	default:
-		return commands.Encrypt(drnd, w, r, dur, flags.armorFlag)
+		return commands.Encrypt(flags, w, r)
 	}
 }
 
