@@ -12,7 +12,7 @@ import (
 
 /*
 	- Implement all the flags except armor.
-	- Write network and chain hash to output (use JSON for now)
+	- Write network and chain hash to output.
 	- Allow network override with flags
 	- Add support for environment variables (kelsey envconfig)
 	- Change output format to github.com/C2SP/C2SP/blob/main/age.md#encrypted-file-format
@@ -32,7 +32,6 @@ OPTIONS:
 	-r, --round The specific round to use to encrypt the message. Cannot be used with --duration.
 	-D, --duration How long to wait before the msg can be decrypted. Default to "120d", i.e. 120 days. Cannot be used with --round.
 	-o, --output OUTPUT write the result to the file at path OUTPUT.
-	-j  --json  Encrypt to a JSON encoded format. (default)
 	-a, --armor Encrypt to a PEM encoded format.`
 
 // =============================================================================
