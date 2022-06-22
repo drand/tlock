@@ -1,8 +1,12 @@
 package commands
 
-import "io"
+import (
+	"io"
+
+	"github.com/drand/tlock/foundation/drnd"
+)
 
 // Decrypt performs the decryption operation.
-func Decrypt(in io.Reader, out io.Writer) error {
+func Decrypt(d *drnd.Drnd, w io.Writer, r io.Reader) error {
 	return nil
 }

@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/drand/tlock/app/tle/commands"
+	"github.com/drand/tlock/foundation/drnd"
 )
 
 /*
@@ -58,7 +62,7 @@ type flags struct {
 	networkFlag  multiFlag
 	chainFlag    string
 	roundFlag    int
-	durationFlag int
+	durationFlag string
 	outputFlag   string
 	armorFlag    bool
 }
@@ -84,34 +88,42 @@ func run(log *log.Logger) error {
 		return err
 	}
 
-	var in io.Reader = os.Stdin
-	var out io.Writer = os.Stdout
+	dur, err := time.ParseDuration(flags.durationFlag)
+	if err != nil {
+		return fmt.Errorf("-D/--duration must be a string with a duration format; Default 120d")
+	}
+
+	var r io.Reader = os.Stdin
+	var w io.Writer = os.Stdout
 
 	if name := flag.Arg(0); name != "" && name != "-" {
-		f, err := os.Open(name)
+		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open input file %q: %v", name, err)
 		}
 		defer f.Close()
-		in = f
+		r = f
 	}
 
 	if name := flags.outputFlag; name != "" && name != "-" {
-		f, err := os.Open(name)
+		f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
-		out = f
+		w = f
+	}
+
+	drnd, err := drnd.New(context.Background(), flags.networkFlag[0], flags.chainFlag, http.DefaultTransport)
+	if err != nil {
+		return fmt.Errorf("failed to create Drand client: %w", err)
 	}
 
 	switch {
 	case flags.decryptFlag:
-		commands.Decrypt(in, out)
+		return commands.Decrypt(drnd, w, r)
 	default:
-		commands.Encrypt(in, out, flags.armorFlag)
+		return commands.Encrypt(drnd, w, r, dur, flags.armorFlag)
 	}
-
-	return nil
 }
 
 // parseFlags will parse all the command line flags. If any parse fails, the
@@ -136,8 +148,8 @@ func parseFlags() flags {
 	flag.IntVar(&f.roundFlag, "r", 0, "the specific round to use; cannot be used with --duration")
 	flag.IntVar(&f.roundFlag, "round", 0, "the specific round to use; cannot be used with --duration")
 
-	flag.IntVar(&f.durationFlag, "D", 120, "how long to wait before being able to decrypt")
-	flag.IntVar(&f.durationFlag, "duration", 120, "how long to wait before being able to decrypt")
+	flag.StringVar(&f.durationFlag, "D", "", "how long to wait before being able to decrypt")
+	flag.StringVar(&f.durationFlag, "duration", "", "how long to wait before being able to decrypt")
 
 	flag.StringVar(&f.outputFlag, "o", "", "the path to the output file")
 	flag.StringVar(&f.outputFlag, "output", "", "the path to the output file")
@@ -165,13 +177,8 @@ func validateFlags(f flags) error {
 		if f.armorFlag {
 			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
 		}
-		if f.durationFlag > 0 {
+		if f.durationFlag != "" {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
-		}
-
-	default:
-		if f.durationFlag <= 0 {
-			return fmt.Errorf("-D/--duration should be a number of days to allow decryption")
 		}
 	}
 

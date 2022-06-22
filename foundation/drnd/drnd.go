@@ -58,7 +58,13 @@ func New(ctx context.Context, network string, chainHash string, transport http.R
 
 // Encrypt will encrypt the message to be decrypted in the future based on the
 // specified duration.
-func (d *Drnd) Encrypt(w io.Writer, duration time.Duration, message []byte) error {
+func (d *Drnd) Encrypt(w io.Writer, r io.Reader, duration time.Duration) error {
+
+	// Read the data from the reader.
+	inputData, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("reading input data: %w", err)
+	}
 
 	// We need to get the future round number based on the duration. The following
 	// call will do the required calculations based on the network `period` property
@@ -73,7 +79,7 @@ func (d *Drnd) Encrypt(w io.Writer, duration time.Duration, message []byte) erro
 	}
 
 	// Encrypt the message.
-	chipher, err := ibe.Encrypt(d.suite, d.publicKey, roundID, message)
+	chipher, err := ibe.Encrypt(d.suite, d.publicKey, roundID, inputData)
 	if err != nil {
 		return fmt.Errorf("encrypt: %w", err)
 	}
