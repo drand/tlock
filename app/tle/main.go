@@ -95,8 +95,8 @@ func parseFlags() commands.Flags {
 	flag.BoolVar(&f.DecryptFlag, "d", false, "decrypt the input to the output")
 	flag.BoolVar(&f.DecryptFlag, "decrypt", false, "decrypt the input to the output")
 
-	flag.Var(&f.NetworkFlag, "n", "the drand API endpoint(s)")
-	flag.Var(&f.NetworkFlag, "network", "the drand API endpoint(s)")
+	flag.StringVar(&f.NetworkFlag, "n", "", "the drand API endpoint")
+	flag.StringVar(&f.NetworkFlag, "network", "", "the drand API endpoint")
 
 	flag.StringVar(&f.ChainFlag, "c", "", "chain to use")
 	flag.StringVar(&f.ChainFlag, "chain", "", "chain to use")
@@ -115,9 +115,9 @@ func parseFlags() commands.Flags {
 
 	flag.Parse()
 
-	if len(f.NetworkFlag) == 0 {
-		f.NetworkFlag.Set("https://mainnet1-api.drand.cloudflare.com/")
-		f.NetworkFlag.Set("https://api.drand.sh/")
+	// Hardcoding the URL
+	if f.NetworkFlag == "" {
+		f.NetworkFlag = "https://mainnet1-api.drand.cloudflare.com/"
 	}
 
 	return f

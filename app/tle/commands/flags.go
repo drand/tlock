@@ -2,26 +2,11 @@ package commands
 
 import "fmt"
 
-// multiFlag provides multi-flag value support.
-type multiFlag []string
-
-// String implements the flag.Value interface.
-func (f *multiFlag) String() string {
-	return fmt.Sprint(*f)
-}
-
-// Set implements the flag.Value interface. Pointer semantics are being
-// used to support the mutation of the slice since length is unknown.
-func (f *multiFlag) Set(value string) error {
-	*f = append(*f, value)
-	return nil
-}
-
 // flags represent the values from the command line.
 type Flags struct {
 	EncryptFlag  bool
 	DecryptFlag  bool
-	NetworkFlag  multiFlag
+	NetworkFlag  string
 	ChainFlag    string
 	RoundFlag    int
 	DurationFlag string
