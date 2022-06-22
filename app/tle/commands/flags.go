@@ -73,7 +73,7 @@ func ParseFlags() Flags {
 	flag.Parse()
 
 	if f.NetworkFlag == "" {
-		f.NetworkFlag = "https://mainnet1-api.drand.cloudflare.com/"
+		f.NetworkFlag = "http://pl-us.testnet.drand.sh/"
 	}
 
 	return f

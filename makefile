@@ -4,7 +4,7 @@ SHELL := /bin/bash
 # Local support
 
 run-encrypt:
-	go run app/tle/main.go -e -n "http://localhost:5101/" -c "a6fc05c10f76feaff566f3c581d8a5307aefe13e9f6ce1b9eb92c7524860ed00" -D 30s -o encryptedFile.txt toencrypt.txt
+	go run app/tle/main.go -e -n "http://pl-us.testnet.drand.sh/" -c "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D 30s -o encryptedFile.txt toencrypt.txt
 
 run-decrypt:
 	go run app/tle/main.go -d encryptedFile.txt
