@@ -14,10 +14,9 @@ import (
 
 /*
 	- Implement all the flags except armor.
-	- Write network and chain hash to output.
-	- Allow network override with flags
 	- Add support for environment variables (kelsey envconfig)
 	- Change output format to github.com/C2SP/C2SP/blob/main/age.md#encrypted-file-format
+	- Improve error messages?
 
 	- Write unit tests with container running network.
 	- Write unit tests with some form of mocking for negative path.
