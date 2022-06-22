@@ -11,12 +11,14 @@ import (
 )
 
 /*
-	- Hardcoding default network values in parseFlag.
+	- Implement all the flags except armor.
+	- Write network and chain hash to output (use JSON for now)
+	- Allow network override with flags
+	- Add support for environment variables (kelsey envconfig)
+	- Change output format to github.com/C2SP/C2SP/blob/main/age.md#encrypted-file-format
 
-	* Integrate that code into main cli tooling.
-		* Write encrypt and decrypt function.
-		* Better flag validation.
-	* Write basic unit tests and figure out best way to test.
+	- Write unit tests with container running network.
+	- Write unit tests with some form of mocking for negative path.
 */
 
 const usage = `USAGE:
