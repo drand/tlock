@@ -92,6 +92,10 @@ func ValidateFlags(f Flags) error {
 		if f.DurationFlag != "" {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
 		}
+	default:
+		if f.ChainFlag == "" {
+			return fmt.Errorf("-c/--chain can't be empty")
+		}
 	}
 
 	if f.RoundFlag < 0 {
