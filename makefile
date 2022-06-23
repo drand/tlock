@@ -13,7 +13,7 @@ run-encrypt-a:
 	go run app/tle/main.go -e -n "http://pl-us.testnet.drand.sh/" -a -c "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D 30s -o encryptedArmor.pem makefile
 
 run-decrypt-a:
-	go run app/tle/main.go -n "http://pl-us.testnet.drand.sh/" -a -o decryptedArmor.pem -d encryptedArmor.pem
+	go run app/tle/main.go -n "http://pl-us.testnet.drand.sh/" -o decryptedArmor.pem -d encryptedArmor.pem
 
 docker-build:
 	docker build \
