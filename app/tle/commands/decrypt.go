@@ -2,21 +2,16 @@ package commands
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/drand/tlock/foundation/drnd"
 )
 
 // Decrypt performs the decryption operation.
-func Decrypt(ctx context.Context, flags Flags, dataToDecrypt io.Reader) error {
-	data, err := drnd.Decrypt(ctx, flags.Network, dataToDecrypt)
-	if err != nil {
+func Decrypt(ctx context.Context, flags Flags, dst io.Writer, dataToDecrypt io.Reader) error {
+	if err := drnd.Decrypt(ctx, dst, flags.Network, dataToDecrypt); err != nil {
 		return err
 	}
-
-	// Printing data to stdout for now.
-	fmt.Println(string(data))
 
 	return nil
 }

@@ -2,6 +2,7 @@
 .DS*
 
 encryptedFile.txt
+decryptedFile.txt
 
 # Binaries for programs and plugins
 *.exe

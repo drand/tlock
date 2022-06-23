@@ -9,6 +9,10 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
+const defaultNetwork = "http://pl-us.testnet.drand.sh/"
+
+// =============================================================================
+
 const usage = `USAGE:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 
@@ -35,7 +39,7 @@ type Flags struct {
 	Decrypt  bool
 	Network  string
 	Chain    string
-	Round    int
+	Round    uint64
 	Duration string
 	Output   string
 	Armor    bool
@@ -44,30 +48,14 @@ type Flags struct {
 // Parse will parse the environment variables and command line flags. The command
 // line flags will overwrite environment variables.
 func Parse() (Flags, error) {
-	var f Flags
-
-	env, err := parseEnv()
-	if err != nil {
-		return f, err
-	}
-
-	// Set enviroment variable as default.
-	f = env
-
-	// CLI flags will overwrite the env values.
-	parseCmdline(&f)
-
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
-	return f, nil
-}
-
-// parseEnv will parse the environment variables.
-func parseEnv() (Flags, error) {
 	var f Flags
 	if err := envconfig.Process("tle", &f); err != nil {
-		return f, fmt.Errorf("parse env: %w", err)
+		return Flags{}, fmt.Errorf("parse env: %w", err)
 	}
+
+	parseCmdline(&f)
 
 	return f, nil
 }
@@ -87,8 +75,8 @@ func parseCmdline(f *Flags) *Flags {
 	flag.StringVar(&f.Chain, "c", f.Chain, "chain to use")
 	flag.StringVar(&f.Chain, "chain", f.Chain, "chain to use")
 
-	flag.IntVar(&f.Round, "r", f.Round, "the specific round to use; cannot be used with --duration")
-	flag.IntVar(&f.Round, "round", f.Round, "the specific round to use; cannot be used with --duration")
+	flag.Uint64Var(&f.Round, "r", f.Round, "the specific round to use; cannot be used with --duration")
+	flag.Uint64Var(&f.Round, "round", f.Round, "the specific round to use; cannot be used with --duration")
 
 	flag.StringVar(&f.Duration, "D", f.Duration, "how long to wait before being able to decrypt")
 	flag.StringVar(&f.Duration, "duration", f.Duration, "how long to wait before being able to decrypt")
@@ -102,7 +90,7 @@ func parseCmdline(f *Flags) *Flags {
 	flag.Parse()
 
 	if f.Network == "" {
-		f.Network = "http://pl-us.testnet.drand.sh/"
+		f.Network = defaultNetwork
 	}
 
 	return f
@@ -121,6 +109,7 @@ func ValidateFlags(f Flags) error {
 		if f.Duration != "" {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
 		}
+
 	default:
 		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")

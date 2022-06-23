@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -21,7 +22,7 @@ import (
 
 // EncryptWithRound will encrypt the plaintext that can only be decrypted in the
 // future specified round.
-func EncryptWithRound(ctx context.Context, dst io.Writer, plaintext io.Reader, network string, chainHash string, round uint64) error {
+func EncryptWithRound(ctx context.Context, dst io.Writer, plaintext io.Reader, network string, chainHash string, armor bool, round uint64) error {
 	ni, err := retrieveNetworkInfo(ctx, network, chainHash)
 	if err != nil {
 		return fmt.Errorf("network info: %w", err)
@@ -32,12 +33,12 @@ func EncryptWithRound(ctx context.Context, dst io.Writer, plaintext io.Reader, n
 		return fmt.Errorf("client get round: %w", err)
 	}
 
-	return encrypt(dst, plaintext, ni, chainHash, roundData.Round(), roundData.Signature())
+	return encrypt(dst, plaintext, ni, chainHash, armor, roundData.Round(), roundData.Signature())
 }
 
 // EncryptWithDuration will encrypt the plaintext that can only be decrypted in the
 // future specified duration.
-func EncryptWithDuration(ctx context.Context, dst io.Writer, plaintext io.Reader, network string, chainHash string, duration time.Duration) error {
+func EncryptWithDuration(ctx context.Context, dst io.Writer, plaintext io.Reader, network string, chainHash string, armor bool, duration time.Duration) error {
 	ni, err := retrieveNetworkInfo(ctx, network, chainHash)
 	if err != nil {
 		return fmt.Errorf("network info: %w", err)
@@ -48,65 +49,11 @@ func EncryptWithDuration(ctx context.Context, dst io.Writer, plaintext io.Reader
 		return fmt.Errorf("calculate future round: %w", err)
 	}
 
-	return encrypt(dst, plaintext, ni, chainHash, roundID, roundIDHash)
+	return encrypt(dst, plaintext, ni, chainHash, armor, roundID, roundIDHash)
 }
-
-// Decrypt reads the ciphertext from the encrypted tle source and return the
-// original plaintext.
-func Decrypt(ctx context.Context, network string, ciphertext io.Reader) ([]byte, error) {
-	cipherInfo, err := read(ciphertext)
-	if err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-
-	ni, err := retrieveNetworkInfo(ctx, network, cipherInfo.chainHash)
-	if err != nil {
-		return nil, fmt.Errorf("network info: %w", err)
-	}
-
-	suite, err := retrievePairingSuite()
-	if err != nil {
-		return nil, fmt.Errorf("pairing suite: %w", err)
-	}
-
-	clientResult, err := ni.client.Get(ctx, cipherInfo.roundID)
-	if err != nil {
-		return nil, fmt.Errorf("client get round: %w", err)
-	}
-
-	var dekSignature bls.KyberG2
-	if err := dekSignature.UnmarshalBinary(clientResult.Signature()); err != nil {
-		return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
-	}
-
-	var dekKyberPoint bls.KyberG1
-	if err := dekKyberPoint.UnmarshalBinary(cipherInfo.dek.kyberPoint); err != nil {
-		return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
-	}
-
-	dekCipherText := ibe.Ciphertext{
-		U: &dekKyberPoint,
-		V: cipherInfo.dek.cipherV,
-		W: cipherInfo.dek.cipherW,
-	}
-
-	dek, err := ibe.Decrypt(suite, ni.chain.PublicKey, &dekSignature, &dekCipherText)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt dek: %w", err)
-	}
-
-	plaintext, err := aeadDecrypt(dek, cipherInfo.text)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt data: %w", err)
-	}
-
-	return plaintext, nil
-}
-
-// =============================================================================
 
 // encrypt provides base functionality for all encryption operations.
-func encrypt(dst io.Writer, plaintext io.Reader, ni networkInfo, chainHash string, round uint64, roundSignature []byte) error {
+func encrypt(dst io.Writer, plaintext io.Reader, ni networkInfo, chainHash string, armor bool, round uint64, roundSignature []byte) error {
 	suite, err := retrievePairingSuite()
 	if err != nil {
 		return fmt.Errorf("pairing suite: %w", err)
@@ -133,12 +80,73 @@ func encrypt(dst io.Writer, plaintext io.Reader, ni networkInfo, chainHash strin
 		return fmt.Errorf("encrypt input: %w", err)
 	}
 
-	if err := write(dst, cipherDek, cipherText, round, chainHash, true); err != nil {
+	if err := write(dst, cipherDek, cipherText, round, chainHash, armor); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 
 	return nil
 }
+
+// Decrypt reads the ciphertext from the encrypted tle source and returns the
+// original plaintext.
+func Decrypt(ctx context.Context, dst io.Writer, network string, ciphertext io.Reader) error {
+	cipherInfo, err := read(ciphertext)
+	if err != nil {
+		return fmt.Errorf("decode: %w", err)
+	}
+
+	ni, err := retrieveNetworkInfo(ctx, network, cipherInfo.chainHash)
+	if err != nil {
+		return fmt.Errorf("network info: %w", err)
+	}
+
+	suite, err := retrievePairingSuite()
+	if err != nil {
+		return fmt.Errorf("pairing suite: %w", err)
+	}
+
+	clientResult, err := ni.client.Get(ctx, cipherInfo.roundID)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return errors.New("too early to decrypt")
+		}
+		return fmt.Errorf("client get round: %w", err)
+	}
+
+	var dekSignature bls.KyberG2
+	if err := dekSignature.UnmarshalBinary(clientResult.Signature()); err != nil {
+		return fmt.Errorf("unmarshal kyber G2: %w", err)
+	}
+
+	var dekKyberPoint bls.KyberG1
+	if err := dekKyberPoint.UnmarshalBinary(cipherInfo.dek.kyberPoint); err != nil {
+		return fmt.Errorf("unmarshal kyber G1: %w", err)
+	}
+
+	dekCipherText := ibe.Ciphertext{
+		U: &dekKyberPoint,
+		V: cipherInfo.dek.cipherV,
+		W: cipherInfo.dek.cipherW,
+	}
+
+	dek, err := ibe.Decrypt(suite, ni.chain.PublicKey, &dekSignature, &dekCipherText)
+	if err != nil {
+		return fmt.Errorf("decrypt dek: %w", err)
+	}
+
+	plaintext, err := aeadDecrypt(dek, cipherInfo.text)
+	if err != nil {
+		return fmt.Errorf("decrypt data: %w", err)
+	}
+
+	if _, err := dst.Write(plaintext); err != nil {
+		return fmt.Errorf("write data: %w", err)
+	}
+
+	return nil
+}
+
+// =============================================================================
 
 // networkInfo provides network and chain information.
 type networkInfo struct {

@@ -17,9 +17,8 @@ func Encrypt(ctx context.Context, flags Flags, dst io.Writer, dataToEncrypt io.R
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		return drnd.EncryptWithDuration(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, duration)
+		return drnd.EncryptWithDuration(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, flags.Armor, duration)
 	}
 
-	// Default to round
-	return drnd.EncryptWithRound(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, uint64(flags.Round))
+	return drnd.EncryptWithRound(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, flags.Armor, flags.Round)
 }

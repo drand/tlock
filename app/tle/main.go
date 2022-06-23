@@ -13,9 +13,7 @@ import (
 )
 
 /*
-	- pair suite configuration
-	- All the flags working in combinations
-	- Add support for environment variables (kelsey envconfig)
+	- Validate default flags don't override env var.
 
 	- Write unit tests with container running network.
 	- Write unit tests with some form of mocking for negative path.
@@ -41,6 +39,7 @@ func run(log *log.Logger) error {
 	if err != nil {
 		return err
 	}
+
 	if err := commands.ValidateFlags(flags); err != nil {
 		return err
 	}
@@ -65,13 +64,12 @@ func run(log *log.Logger) error {
 		dst = f
 	}
 
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	switch {
 	case flags.Decrypt:
-		return commands.Decrypt(ctx, flags, dataToEncrypt)
+		return commands.Decrypt(ctx, flags, dst, dataToEncrypt)
 	default:
 		return commands.Encrypt(ctx, flags, dst, dataToEncrypt)
 	}
