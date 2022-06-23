@@ -15,7 +15,6 @@ import (
 /*
 	- Implement all the flags except armor.
 	- Add support for environment variables (kelsey envconfig)
-	- Change output format to github.com/C2SP/C2SP/blob/main/age.md#encrypted-file-format
 	- Improve error messages?
 
 	- Write unit tests with container running network.
