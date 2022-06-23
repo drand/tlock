@@ -2,6 +2,8 @@ package drnd
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"strconv"
@@ -10,17 +12,34 @@ import (
 )
 
 // write the meta data and encrypted data to the destination.
-func write(dst io.Writer, cipherDek *ibe.Ciphertext, cipherText []byte, roundID uint64, chainHash string) error {
+func write(dst io.Writer, cipherDek *ibe.Ciphertext, cipherText []byte, roundID uint64, chainHash string, armor bool) (err error) {
+	var b bytes.Buffer
+	ww := bufio.NewWriter(&b)
+
+	defer func() {
+		ww.Flush()
+
+		if armor {
+			block := pem.Block{
+				Type:  "TLE ENCRYPTED FILE",
+				Bytes: b.Bytes(),
+			}
+			if err = pem.Encode(dst, &block); err != nil {
+				err = fmt.Errorf("encoding to PEM: %w", err)
+			}
+			return
+		}
+
+		_, err = io.Copy(dst, &b)
+	}()
+
 	kyberPoint, err := cipherDek.U.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
-	fmt.Fprintln(dst, strconv.Itoa(int(roundID)))
-	fmt.Fprintln(dst, chainHash)
-
-	ww := bufio.NewWriter(dst)
-	defer ww.Flush()
+	fmt.Fprintln(ww, strconv.Itoa(int(roundID)))
+	fmt.Fprintln(ww, chainHash)
 
 	fmt.Fprintf(ww, "%010d", len(kyberPoint))
 	ww.Write(kyberPoint)
@@ -54,7 +73,20 @@ type cipherInfo struct {
 
 // read the encrypted data into its different parts.
 func read(src io.Reader) (cipherInfo, error) {
-	rr := bufio.NewReader(src)
+	data, err := io.ReadAll(src)
+	if err != nil {
+		return cipherInfo{}, fmt.Errorf("failed to read the data from source: %w", err)
+	}
+
+	rr := bufio.NewReader(bytes.NewReader(data))
+	if string(data[:5]) == "-----" {
+		var block *pem.Block
+		if block, _ = pem.Decode(data); block == nil {
+			return cipherInfo{}, fmt.Errorf("decoding PEM: %s", "block is nil")
+		}
+
+		rr = bufio.NewReader(bytes.NewReader(block.Bytes))
+	}
 
 	roundIDStr, err := readHeaderLine(rr)
 	if err != nil {

@@ -133,7 +133,7 @@ func encrypt(dst io.Writer, plaintext io.Reader, ni networkInfo, chainHash strin
 		return fmt.Errorf("encrypt input: %w", err)
 	}
 
-	if err := write(dst, cipherDek, cipherText, round, chainHash); err != nil {
+	if err := write(dst, cipherDek, cipherText, round, chainHash, true); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 
