@@ -1,17 +1,15 @@
 package drnd
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/drand/drand/chain"
@@ -52,7 +50,7 @@ func EncryptWithRound(ctx context.Context, dst io.Writer, dataToEncrypt io.Reade
 		return fmt.Errorf("client get round: %w", err)
 	}
 
-	return encrypt(dst, dataToEncrypt, network, ni, chainHash, roundData.Round(), roundData.Signature())
+	return encrypt(dst, dataToEncrypt, ni, chainHash, roundData.Round(), roundData.Signature())
 }
 
 // EncryptWithDuration will encrypt the message to be decrypted in the future based
@@ -68,18 +66,18 @@ func EncryptWithDuration(ctx context.Context, dst io.Writer, dataToEncrypt io.Re
 		return fmt.Errorf("calculate future round: %w", err)
 	}
 
-	return encrypt(dst, dataToEncrypt, network, ni, chainHash, roundID, roundIDHash)
+	return encrypt(dst, dataToEncrypt, ni, chainHash, roundID, roundIDHash)
 }
 
 // Decrypt reads the encrypted output from the Encrypt function and decrypts
 // the message if the time allows it.
-func Decrypt(ctx context.Context, dataToDecrypt io.Reader) ([]byte, error) {
+func Decrypt(ctx context.Context, network string, dataToDecrypt io.Reader) ([]byte, error) {
 	di, err := decode(dataToDecrypt)
 	if err != nil {
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 
-	ni, err := retrieveNetworkInfo(ctx, di.network, di.chainHash)
+	ni, err := retrieveNetworkInfo(ctx, network, di.chainHash)
 	if err != nil {
 		return nil, fmt.Errorf("network info: %w", err)
 	}
@@ -195,31 +193,30 @@ func calculateRound(duration time.Duration, ni networkInfo) (roundIDHash []byte,
 }
 
 // encode the meta data and encrypted data to the destination.
-func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, network string, chainHash string) error {
+func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, chainHash string) error {
 	kyberPoint, err := cipher.U.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
-	// Write the header as plain text.
-	// Hash the header data using sha256 and write it.
-	// Encode the cipher data into binary encoding and write it.
-
 	rn := strconv.Itoa(int(roundID))
-	nt := network
 	ch := chainHash
-	// kp := base64.StdEncoding.EncodeToString(kyberPoint)
-	// cv := base64.StdEncoding.EncodeToString(cipher.V)
-	// cw := base64.StdEncoding.EncodeToString(cipher.W)
 
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, kyberPoint)
-	binary.Write(buf, binary.LittleEndian, cipher.V)
-	binary.Write(buf, binary.LittleEndian, cipher.W)
+	ww := bufio.NewWriter(dst)
+	defer ww.Flush()
 
-	if _, err := fmt.Fprintf(dst, "%s\n%s\n%s\n%s", rn, nt, ch, buf); err != nil {
-		return fmt.Errorf("writing encrypted message: %w", err)
-	}
+	ww.WriteString(rn + "\n")
+	ww.WriteString(ch + "\n")
+	ww.WriteString("--- HASH\n")
+
+	ww.WriteString(fmt.Sprintf("%010d", len(kyberPoint)))
+	ww.Write(kyberPoint)
+
+	ww.WriteString(fmt.Sprintf("%010d", len(cipher.V)))
+	ww.Write(cipher.V)
+
+	ww.WriteString(fmt.Sprintf("%010d", len(cipher.W)))
+	ww.Write(cipher.W)
 
 	return nil
 }
@@ -227,7 +224,6 @@ func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, network strin
 // decodeInfo represents the different parts of any encrypted data.
 type decodeInfo struct {
 	roundID    uint64
-	network    string
 	chainHash  string
 	kyberPoint []byte
 	cipherV    []byte
@@ -236,59 +232,99 @@ type decodeInfo struct {
 
 // decode the encrypted data into its different parts.
 func decode(src io.Reader) (decodeInfo, error) {
-	encryptedData, err := io.ReadAll(src)
+	rr := bufio.NewReader(src)
+
+	roundIDStr, err := rr.ReadString('\n')
 	if err != nil {
-		return decodeInfo{}, fmt.Errorf("reading encrypted data: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to read roundID: %w", err)
 	}
+	roundIDStr = roundIDStr[:len(roundIDStr)-1]
 
-	parts := strings.Split(string(encryptedData), "\n")
-	if len(parts) != 4 {
-		return decodeInfo{}, fmt.Errorf("invalid encrypted data: parts %d: %w", len(parts), err)
-	}
-
-	roundID, err := strconv.Atoi(parts[0])
+	roundID, err := strconv.Atoi(roundIDStr)
 	if err != nil {
-		return decodeInfo{}, fmt.Errorf("parsing round id: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to convert round: %w", err)
 	}
 
-	network := parts[1]
-	chainHash := parts[2]
+	chainHash, err := rr.ReadString('\n')
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
+	}
+	chainHash = chainHash[:len(chainHash)-1]
 
-	res := []byte{}
+	hdrHash, err := rr.ReadString('\n')
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read header hash: %w", err)
+	}
+	hdrHash = hdrHash[:len(hdrHash)-1]
 
-	binary.Read(src, binary.LittleEndian, res)
+	kpLenStr := make([]byte, 10)
+	if _, err := rr.Read(kpLenStr); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read kp length: %w", err)
+	}
 
-	fmt.Println(string(res))
+	kpLen, err := strconv.Atoi(string(kpLenStr))
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to decode kp length: %w", err)
+	}
 
-	// kyberPoint, err := base64.StdEncoding.DecodeString(parts[3])
-	// if err != nil {
-	// 	return decodeInfo{}, fmt.Errorf("decoding kyber point: %w", err)
-	// }
+	kyberPoint := make([]byte, kpLen)
+	if _, err := rr.Read(kyberPoint); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read kyberPoint: %w", err)
+	}
 
-	// cipherV, err := base64.StdEncoding.DecodeString(parts[4])
-	// if err != nil {
-	// 	return decodeInfo{}, fmt.Errorf("decoding cipher v: %w", err)
-	// }
+	vLenStr := make([]byte, 10)
+	if _, err := rr.Read(vLenStr); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read v length: %w", err)
+	}
 
-	// cipherW, err := base64.StdEncoding.DecodeString(parts[5])
-	// if err != nil {
-	// 	return decodeInfo{}, fmt.Errorf("decoding cipher w: %w", err)
-	// }
+	vLen, err := strconv.Atoi(string(vLenStr))
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to decode v length: %w", err)
+	}
+
+	cipherV := make([]byte, vLen)
+	if _, err := rr.Read(cipherV); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read cipherV: %w", err)
+	}
+
+	wLenStr := make([]byte, 10)
+	if _, err := rr.Read(wLenStr); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read w length: %w", err)
+	}
+
+	wLen, err := strconv.Atoi(string(wLenStr))
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to decode w length: %w", err)
+	}
+
+	cipherW := make([]byte, wLen)
+	if _, err := rr.Read(cipherW); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read cipherW: %w", err)
+	}
+
+	fmt.Println("round:       ", roundIDStr)
+	fmt.Println("chain hash:  ", chainHash)
+	fmt.Println("Header hash: ", hdrHash)
+	fmt.Println("kp len:      ", kpLen)
+	fmt.Println("kp:          ", kyberPoint)
+	fmt.Println("v len:       ", vLen)
+	fmt.Println("v:           ", cipherV)
+	fmt.Println("w len:       ", wLen)
+	fmt.Println("w:           ", cipherW)
 
 	di := decodeInfo{
-		roundID:   uint64(roundID),
-		network:   network,
-		chainHash: chainHash,
-		// kyberPoint: kyberPoint,
-		// cipherV:    cipherV,
-		// cipherW:    cipherW,
+		roundID:    uint64(roundID),
+		chainHash:  chainHash,
+		kyberPoint: kyberPoint,
+		cipherV:    cipherV,
+		cipherW:    cipherW,
 	}
 
 	return di, nil
 }
 
 // encrypt provides base functionality for all encryption operations.
-func encrypt(dst io.Writer, dataToEncrypt io.Reader, network string, ni networkInfo, chainHash string, round uint64, roundSignature []byte) error {
+func encrypt(dst io.Writer, dataToEncrypt io.Reader, ni networkInfo, chainHash string, round uint64, roundSignature []byte) error {
 	suite, err := retrievePairingSuite()
 	if err != nil {
 		return fmt.Errorf("pairing suite: %w", err)
@@ -304,7 +340,7 @@ func encrypt(dst io.Writer, dataToEncrypt io.Reader, network string, ni networkI
 		return fmt.Errorf("encrypt: %w", err)
 	}
 
-	if err := encode(dst, cipher, round, network, chainHash); err != nil {
+	if err := encode(dst, cipher, round, chainHash); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 

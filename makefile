@@ -4,10 +4,10 @@ SHELL := /bin/bash
 # Local support
 
 run-encrypt:
-	go run app/tle/main.go -e -n "http://pl-us.testnet.drand.sh/" -c "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D 30s -o encryptedFile.txt toencrypt.txt
+	go run app/tle/main.go -e -n "http://pl-us.testnet.drand.sh/" -c "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D 30s -o encryptedFile.txt makefile
 
 run-decrypt:
-	go run app/tle/main.go -d encryptedFile.txt
+	go run app/tle/main.go -n "http://pl-us.testnet.drand.sh/" -d encryptedFile.txt
 
 run-throw:
 	go run app/throwaway/main.go

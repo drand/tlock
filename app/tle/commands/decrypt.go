@@ -10,7 +10,7 @@ import (
 
 // Decrypt performs the decryption operation.
 func Decrypt(ctx context.Context, flags Flags, dataToDecrypt io.Reader) error {
-	data, err := drnd.Decrypt(ctx, dataToDecrypt)
+	data, err := drnd.Decrypt(ctx, flags.NetworkFlag, dataToDecrypt)
 	if err != nil {
 		return err
 	}

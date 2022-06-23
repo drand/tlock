@@ -1,6 +1,8 @@
 # Mac files
 .DS*
 
+encryptedFile.txt
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
