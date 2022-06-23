@@ -22,6 +22,23 @@ import (
 	"github.com/drand/kyber/pairing"
 )
 
+/*
+	encrypt
+	1) generate random key named "Data encryption key", DEK
+	2) encrypt the data using random key, get ciphertext
+	3) encrypt the DEK using IBE and append it to our ciphertext.
+
+	decryption is done by:
+	1) decrypt the DEK using IBE and drand round
+	2) use the decrypted DEK to decrypt the rest of the ciphertext
+
+	// Random Key generation
+	https://github.com/FiloSottile/age/blob/c50f1ae2e1778edd5d1f780a3dcf3892c7d845db/age.go#L125
+
+	// Encryption Chacha20Poly1305
+	https://github.com/FiloSottile/age/blob/main/primitives.go
+*/
+
 // EncryptWithRound will encrypt the message to be decrypted in the future based
 // on the specified round.
 func EncryptWithRound(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, network string, chainHash string, round uint64) error {
