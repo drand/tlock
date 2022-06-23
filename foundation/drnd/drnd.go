@@ -21,23 +21,6 @@ import (
 	"github.com/drand/kyber/pairing"
 )
 
-/*
-	encrypt
-	1) generate random key named "Data encryption key", DEK
-	2) encrypt the data using random key, get ciphertext
-	3) encrypt the DEK using IBE and append it to our ciphertext.
-
-	decryption is done by:
-	1) decrypt the DEK using IBE and drand round
-	2) use the decrypted DEK to decrypt the rest of the ciphertext
-
-	// Random Key generation
-	https://github.com/FiloSottile/age/blob/c50f1ae2e1778edd5d1f780a3dcf3892c7d845db/age.go#L125
-
-	// Encryption Chacha20Poly1305
-	https://github.com/FiloSottile/age/blob/main/primitives.go
-*/
-
 // EncryptWithRound will encrypt the message to be decrypted in the future based
 // on the specified round.
 func EncryptWithRound(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, network string, chainHash string, round uint64) error {
@@ -88,15 +71,11 @@ func Decrypt(ctx context.Context, network string, dataToDecrypt io.Reader) ([]by
 		return nil, fmt.Errorf("pairing suite: %w", err)
 	}
 
-	// Get returns the randomness at `round` or an error. If it does not exist
-	// yet, it will return an EOF error (HTTP 404).
 	clientResult, err := ni.client.Get(ctx, di.roundID)
 	if err != nil {
 		return nil, fmt.Errorf("client get round: %w", err)
 	}
 
-	// If we can get the data from the future round above, we need to create
-	// another kyber point but this time using Group2.
 	var g2 bls.KyberG2
 	if err := g2.UnmarshalBinary(clientResult.Signature()); err != nil {
 		return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
@@ -242,21 +221,20 @@ func encode(dst io.Writer, cipherDek *ibe.Ciphertext, encryptedData []byte, roun
 
 	fmt.Fprintln(dst, strconv.Itoa(int(roundID)))
 	fmt.Fprintln(dst, chainHash)
-	fmt.Fprintln(dst, "--- HASH")
 
 	ww := bufio.NewWriter(dst)
 	defer ww.Flush()
 
-	ww.WriteString(fmt.Sprintf("%010d", len(kyberPoint)))
+	fmt.Fprintf(ww, "%010d", len(kyberPoint))
 	ww.Write(kyberPoint)
 
-	ww.WriteString(fmt.Sprintf("%010d", len(cipherDek.V)))
+	fmt.Fprintf(ww, "%010d", len(cipherDek.V))
 	ww.Write(cipherDek.V)
 
-	ww.WriteString(fmt.Sprintf("%010d", len(cipherDek.W)))
+	fmt.Fprintf(ww, "%010d", len(cipherDek.W))
 	ww.Write(cipherDek.W)
 
-	ww.WriteString(fmt.Sprintf("%010d", len(encryptedData)))
+	fmt.Fprintf(ww, "%010d", len(encryptedData))
 	ww.Write(encryptedData)
 
 	return nil
@@ -289,15 +267,6 @@ func decode(src io.Reader) (decodeInfo, error) {
 	chainHash, err := readHeaderLine(rr)
 	if err != nil {
 		return decodeInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
-	}
-
-	hdrHash, err := readHeaderLine(rr)
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read header hash: %w", err)
-	}
-
-	if hdrHash != "--- HASH" {
-		return decodeInfo{}, fmt.Errorf("invalid header hash: %w", err)
 	}
 
 	kyberPoint, err := readPayloadBytes(rr)
