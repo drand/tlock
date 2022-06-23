@@ -3,6 +3,8 @@
 
 encryptedFile.txt
 decryptedFile.txt
+encryptedArmor.pem
+decryptedArmor.pem
 
 # Binaries for programs and plugins
 *.exe
