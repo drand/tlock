@@ -199,14 +199,11 @@ func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, chainHash str
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
-	rn := strconv.Itoa(int(roundID))
-	ch := chainHash
-
 	ww := bufio.NewWriter(dst)
 	defer ww.Flush()
 
-	ww.WriteString(rn + "\n")
-	ww.WriteString(ch + "\n")
+	ww.WriteString(strconv.Itoa(int(roundID)) + "\n")
+	ww.WriteString(chainHash + "\n")
 	ww.WriteString("--- HASH\n")
 
 	ww.WriteString(fmt.Sprintf("%010d", len(kyberPoint)))
@@ -257,60 +254,54 @@ func decode(src io.Reader) (decodeInfo, error) {
 	}
 	hdrHash = hdrHash[:len(hdrHash)-1]
 
-	kpLenStr := make([]byte, 10)
-	if _, err := rr.Read(kpLenStr); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read kp length: %w", err)
+	if hdrHash != "--- HASH" {
+		return decodeInfo{}, fmt.Errorf("invalid header hash: %w", err)
 	}
 
-	kpLen, err := strconv.Atoi(string(kpLenStr))
+	kyberPointLenStr := make([]byte, 10)
+	if _, err := rr.Read(kyberPointLenStr); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read kyber point length: %w", err)
+	}
+
+	kyberPointLen, err := strconv.Atoi(string(kyberPointLenStr))
 	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to decode kp length: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to decode kyber point length: %w", err)
 	}
 
-	kyberPoint := make([]byte, kpLen)
+	kyberPoint := make([]byte, kyberPointLen)
 	if _, err := rr.Read(kyberPoint); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read kyberPoint: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to read kyber point: %w", err)
 	}
 
-	vLenStr := make([]byte, 10)
-	if _, err := rr.Read(vLenStr); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read v length: %w", err)
+	cipherVLenStr := make([]byte, 10)
+	if _, err := rr.Read(cipherVLenStr); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read cipher v length: %w", err)
 	}
 
-	vLen, err := strconv.Atoi(string(vLenStr))
+	cipherVLen, err := strconv.Atoi(string(cipherVLenStr))
 	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to decode v length: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to decode cipher v length: %w", err)
 	}
 
-	cipherV := make([]byte, vLen)
+	cipherV := make([]byte, cipherVLen)
 	if _, err := rr.Read(cipherV); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read cipherV: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to read cipher v: %w", err)
 	}
 
-	wLenStr := make([]byte, 10)
-	if _, err := rr.Read(wLenStr); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read w length: %w", err)
+	cipherWLenStr := make([]byte, 10)
+	if _, err := rr.Read(cipherWLenStr); err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read cipher w length: %w", err)
 	}
 
-	wLen, err := strconv.Atoi(string(wLenStr))
+	cipherWLen, err := strconv.Atoi(string(cipherWLenStr))
 	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to decode w length: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to decode cipher w length: %w", err)
 	}
 
-	cipherW := make([]byte, wLen)
+	cipherW := make([]byte, cipherWLen)
 	if _, err := rr.Read(cipherW); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read cipherW: %w", err)
+		return decodeInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
 	}
-
-	fmt.Println("round:       ", roundIDStr)
-	fmt.Println("chain hash:  ", chainHash)
-	fmt.Println("Header hash: ", hdrHash)
-	fmt.Println("kp len:      ", kpLen)
-	fmt.Println("kp:          ", kyberPoint)
-	fmt.Println("v len:       ", vLen)
-	fmt.Println("v:           ", cipherV)
-	fmt.Println("w len:       ", wLen)
-	fmt.Println("w:           ", cipherW)
 
 	di := decodeInfo{
 		roundID:    uint64(roundID),
