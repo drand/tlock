@@ -13,6 +13,7 @@ import (
 )
 
 /*
+	-- pair suite configuration.
 	- Implement all the flags except armor.
 	- Add support for environment variables (kelsey envconfig)
 	- Improve error messages?
