@@ -19,7 +19,7 @@ const usage = `USAGE:
 OPTIONS:
 	-e, --encrypt Encrypt the input to the output. Default if omitted.
 	-d, --decrypt Decrypt the input to the output, using the required drand rounds.
-	-n, --network The drand API endpoint(s) to use. Default to https://mainnet1-api.drand.cloudflare.com/ and https://api.drand.sh/
+	-n, --network The drand API endpoint(s) to use. Default is http://pl-us.testnet.drand.sh/
 	-c, --chain The chain to use. Can use either beacon ID name or beacon hash. Default to the chain hash of the "unchained" network. Use beacon hash in order to ensure public key integrity.
 	-r, --round The specific round to use to encrypt the message. Cannot be used with --duration.
 	-D, --duration How long to wait before the msg can be decrypted. Default to "120d", i.e. 120 days. Cannot be used with --round.

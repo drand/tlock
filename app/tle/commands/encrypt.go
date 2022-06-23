@@ -10,15 +10,15 @@ import (
 )
 
 // Encrypt performs the encryption operation.
-func Encrypt(ctx context.Context, flags Flags, dst io.Writer, dataToEncrypt io.Reader) error {
+func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) error {
 	if flags.Duration != "" {
 		duration, err := time.ParseDuration(flags.Duration)
 		if err != nil {
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		return drnd.EncryptWithDuration(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, flags.Armor, duration)
+		return drnd.EncryptWithDuration(ctx, out, in, flags.Network, flags.Chain, duration, flags.Armor)
 	}
 
-	return drnd.EncryptWithRound(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, flags.Armor, flags.Round)
+	return drnd.EncryptWithRound(ctx, out, in, flags.Network, flags.Chain, flags.Round, flags.Armor)
 }

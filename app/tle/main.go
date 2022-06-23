@@ -44,24 +44,24 @@ func run(log *log.Logger) error {
 		return err
 	}
 
-	var dataToEncrypt io.Reader = os.Stdin
+	var in io.Reader = os.Stdin
 	if name := flag.Arg(0); name != "" && name != "-" {
 		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open input file %q: %v", name, err)
 		}
 		defer f.Close()
-		dataToEncrypt = f
+		in = f
 	}
 
-	var dst io.Writer = os.Stdout
+	var out io.Writer = os.Stdout
 	if name := flags.Output; name != "" && name != "-" {
 		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
 		defer f.Close()
-		dst = f
+		out = f
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -69,8 +69,8 @@ func run(log *log.Logger) error {
 
 	switch {
 	case flags.Decrypt:
-		return commands.Decrypt(ctx, flags, dst, dataToEncrypt)
+		return commands.Decrypt(ctx, flags, out, in)
 	default:
-		return commands.Encrypt(ctx, flags, dst, dataToEncrypt)
+		return commands.Encrypt(ctx, flags, out, in)
 	}
 }

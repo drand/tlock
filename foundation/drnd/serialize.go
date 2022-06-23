@@ -11,8 +11,30 @@ import (
 	"github.com/drand/kyber/encrypt/ibe"
 )
 
-// write the meta data and encrypted data to the destination.
-func write(dst io.Writer, cipherDek *ibe.Ciphertext, cipherText []byte, roundID uint64, chainHash string, armor bool) (err error) {
+// metadata represents the metadata maintained in the encrypted output.
+type metadata struct {
+	roundID   uint64
+	chainHash string
+}
+
+// cipherDex represents the different parts of the Data Encryption Key.
+type dek struct {
+	kyberPoint []byte
+	cipherV    []byte
+	cipherW    []byte
+}
+
+// fileInfo represents the different parts of the encrypted source.
+type fileInfo struct {
+	metadata   metadata
+	dek        dek
+	cipherText []byte
+}
+
+// =============================================================================
+
+// write the meta data, cipher DEK and cipher text to the output destination.
+func write(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md metadata, armor bool) (err error) {
 	var b bytes.Buffer
 	ww := bufio.NewWriter(&b)
 
@@ -24,31 +46,31 @@ func write(dst io.Writer, cipherDek *ibe.Ciphertext, cipherText []byte, roundID 
 				Type:  "TLE ENCRYPTED FILE",
 				Bytes: b.Bytes(),
 			}
-			if err = pem.Encode(dst, &block); err != nil {
+			if err = pem.Encode(out, &block); err != nil {
 				err = fmt.Errorf("encoding to PEM: %w", err)
 			}
 			return
 		}
 
-		_, err = io.Copy(dst, &b)
+		_, err = io.Copy(out, &b)
 	}()
 
-	kyberPoint, err := cipherDek.U.MarshalBinary()
+	kyberPoint, err := cipherDEK.U.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
-	fmt.Fprintln(ww, strconv.Itoa(int(roundID)))
-	fmt.Fprintln(ww, chainHash)
+	fmt.Fprintln(ww, strconv.Itoa(int(md.roundID)))
+	fmt.Fprintln(ww, md.chainHash)
 
 	fmt.Fprintf(ww, "%010d", len(kyberPoint))
 	ww.Write(kyberPoint)
 
-	fmt.Fprintf(ww, "%010d", len(cipherDek.V))
-	ww.Write(cipherDek.V)
+	fmt.Fprintf(ww, "%010d", len(cipherDEK.V))
+	ww.Write(cipherDEK.V)
 
-	fmt.Fprintf(ww, "%010d", len(cipherDek.W))
-	ww.Write(cipherDek.W)
+	fmt.Fprintf(ww, "%010d", len(cipherDEK.W))
+	ww.Write(cipherDEK.W)
 
 	fmt.Fprintf(ww, "%010d", len(cipherText))
 	ww.Write(cipherText)
@@ -56,33 +78,18 @@ func write(dst io.Writer, cipherDek *ibe.Ciphertext, cipherText []byte, roundID 
 	return nil
 }
 
-// cipherDex represents the different parts of the Data Encryption Key.
-type dek struct {
-	kyberPoint []byte
-	cipherV    []byte
-	cipherW    []byte
-}
-
-// cipherInfo represents the different parts of the encrypted source.
-type cipherInfo struct {
-	roundID   uint64
-	chainHash string
-	dek       dek
-	text      []byte
-}
-
 // read the encrypted data into its different parts.
-func read(src io.Reader) (cipherInfo, error) {
-	data, err := io.ReadAll(src)
+func read(in io.Reader) (fileInfo, error) {
+	data, err := io.ReadAll(in)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to read the data from source: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to read the data from source: %w", err)
 	}
 
 	rr := bufio.NewReader(bytes.NewReader(data))
 	if string(data[:5]) == "-----" {
 		var block *pem.Block
 		if block, _ = pem.Decode(data); block == nil {
-			return cipherInfo{}, fmt.Errorf("decoding PEM: %s", "block is nil")
+			return fileInfo{}, fmt.Errorf("decoding PEM: %s", "block is nil")
 		}
 
 		rr = bufio.NewReader(bytes.NewReader(block.Bytes))
@@ -90,51 +97,53 @@ func read(src io.Reader) (cipherInfo, error) {
 
 	roundIDStr, err := readHeaderLine(rr)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to read roundID: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to read roundID: %w", err)
 	}
 
 	roundID, err := strconv.Atoi(roundIDStr)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to convert round: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to convert round: %w", err)
 	}
 
 	chainHash, err := readHeaderLine(rr)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
 	}
 
 	kyberPoint, err := readPayloadBytes(rr)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to read kyber point: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to read kyber point: %w", err)
 	}
 
 	cipherV, err := readPayloadBytes(rr)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to read cipher v: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to read cipher v: %w", err)
 	}
 
 	cipherW, err := readPayloadBytes(rr)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
 	}
 
 	cipherText, err := readPayloadBytes(rr)
 	if err != nil {
-		return cipherInfo{}, fmt.Errorf("failed to read cipher text w: %w", err)
+		return fileInfo{}, fmt.Errorf("failed to read cipher text w: %w", err)
 	}
 
-	ci := cipherInfo{
-		roundID:   uint64(roundID),
-		chainHash: chainHash,
+	fi := fileInfo{
+		metadata: metadata{
+			roundID:   uint64(roundID),
+			chainHash: chainHash,
+		},
 		dek: dek{
 			kyberPoint: kyberPoint,
 			cipherV:    cipherV,
 			cipherW:    cipherW,
 		},
-		text: cipherText,
+		cipherText: cipherText,
 	}
 
-	return ci, nil
+	return fi, nil
 }
 
 // readPayloadBytes reads the section of the payload.

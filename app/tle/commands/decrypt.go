@@ -8,8 +8,8 @@ import (
 )
 
 // Decrypt performs the decryption operation.
-func Decrypt(ctx context.Context, flags Flags, dst io.Writer, dataToDecrypt io.Reader) error {
-	if err := drnd.Decrypt(ctx, dst, flags.Network, dataToDecrypt); err != nil {
+func Decrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) error {
+	if err := drnd.Decrypt(ctx, out, in, flags.Network); err != nil {
 		return err
 	}
 
