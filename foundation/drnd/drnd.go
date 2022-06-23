@@ -3,6 +3,7 @@ package drnd
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -112,12 +113,17 @@ func Decrypt(ctx context.Context, network string, dataToDecrypt io.Reader) ([]by
 		W: di.cipherW,
 	}
 
-	decryptedData, err := ibe.Decrypt(suite, ni.chain.PublicKey, &g2, &newCipherText)
+	dek, err := ibe.Decrypt(suite, ni.chain.PublicKey, &g2, &newCipherText)
 	if err != nil {
-		return nil, fmt.Errorf("decrypt: %w", err)
+		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
 
-	return decryptedData, nil
+	data, err := aeadDecrypt(dek, di.encryptedData)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt data: %w", err)
+	}
+
+	return data, nil
 }
 
 // =============================================================================
@@ -192,128 +198,6 @@ func calculateRound(duration time.Duration, ni networkInfo) (roundIDHash []byte,
 	return h.Sum(nil), roundID, nil
 }
 
-// encode the meta data and encrypted data to the destination.
-func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, chainHash string) error {
-	kyberPoint, err := cipher.U.MarshalBinary()
-	if err != nil {
-		return fmt.Errorf("marshal binary: %w", err)
-	}
-
-	ww := bufio.NewWriter(dst)
-	defer ww.Flush()
-
-	ww.WriteString(strconv.Itoa(int(roundID)) + "\n")
-	ww.WriteString(chainHash + "\n")
-	ww.WriteString("--- HASH\n")
-
-	ww.WriteString(fmt.Sprintf("%010d", len(kyberPoint)))
-	ww.Write(kyberPoint)
-
-	ww.WriteString(fmt.Sprintf("%010d", len(cipher.V)))
-	ww.Write(cipher.V)
-
-	ww.WriteString(fmt.Sprintf("%010d", len(cipher.W)))
-	ww.Write(cipher.W)
-
-	return nil
-}
-
-// decodeInfo represents the different parts of any encrypted data.
-type decodeInfo struct {
-	roundID    uint64
-	chainHash  string
-	kyberPoint []byte
-	cipherV    []byte
-	cipherW    []byte
-}
-
-// decode the encrypted data into its different parts.
-func decode(src io.Reader) (decodeInfo, error) {
-	rr := bufio.NewReader(src)
-
-	roundIDStr, err := rr.ReadString('\n')
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read roundID: %w", err)
-	}
-	roundIDStr = roundIDStr[:len(roundIDStr)-1]
-
-	roundID, err := strconv.Atoi(roundIDStr)
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to convert round: %w", err)
-	}
-
-	chainHash, err := rr.ReadString('\n')
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
-	}
-	chainHash = chainHash[:len(chainHash)-1]
-
-	hdrHash, err := rr.ReadString('\n')
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read header hash: %w", err)
-	}
-	hdrHash = hdrHash[:len(hdrHash)-1]
-
-	if hdrHash != "--- HASH" {
-		return decodeInfo{}, fmt.Errorf("invalid header hash: %w", err)
-	}
-
-	kyberPointLenStr := make([]byte, 10)
-	if _, err := rr.Read(kyberPointLenStr); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read kyber point length: %w", err)
-	}
-
-	kyberPointLen, err := strconv.Atoi(string(kyberPointLenStr))
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to decode kyber point length: %w", err)
-	}
-
-	kyberPoint := make([]byte, kyberPointLen)
-	if _, err := rr.Read(kyberPoint); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read kyber point: %w", err)
-	}
-
-	cipherVLenStr := make([]byte, 10)
-	if _, err := rr.Read(cipherVLenStr); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read cipher v length: %w", err)
-	}
-
-	cipherVLen, err := strconv.Atoi(string(cipherVLenStr))
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to decode cipher v length: %w", err)
-	}
-
-	cipherV := make([]byte, cipherVLen)
-	if _, err := rr.Read(cipherV); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read cipher v: %w", err)
-	}
-
-	cipherWLenStr := make([]byte, 10)
-	if _, err := rr.Read(cipherWLenStr); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read cipher w length: %w", err)
-	}
-
-	cipherWLen, err := strconv.Atoi(string(cipherWLenStr))
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to decode cipher w length: %w", err)
-	}
-
-	cipherW := make([]byte, cipherWLen)
-	if _, err := rr.Read(cipherW); err != nil {
-		return decodeInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
-	}
-
-	di := decodeInfo{
-		roundID:    uint64(roundID),
-		chainHash:  chainHash,
-		kyberPoint: kyberPoint,
-		cipherV:    cipherV,
-		cipherW:    cipherW,
-	}
-
-	return di, nil
-}
-
 // encrypt provides base functionality for all encryption operations.
 func encrypt(dst io.Writer, dataToEncrypt io.Reader, ni networkInfo, chainHash string, round uint64, roundSignature []byte) error {
 	suite, err := retrievePairingSuite()
@@ -326,14 +210,154 @@ func encrypt(dst io.Writer, dataToEncrypt io.Reader, ni networkInfo, chainHash s
 		return fmt.Errorf("reading input data: %w", err)
 	}
 
-	cipher, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundSignature, inputData)
-	if err != nil {
-		return fmt.Errorf("encrypt: %w", err)
+	const fileKeySize int = 32
+	dek := make([]byte, fileKeySize)
+	if _, err := rand.Read(dek); err != nil {
+		return fmt.Errorf("random key: %w", err)
 	}
 
-	if err := encode(dst, cipher, round, chainHash); err != nil {
+	cipherDek, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundSignature, dek)
+	if err != nil {
+		return fmt.Errorf("encrypt dek: %w", err)
+	}
+
+	encryptedData, err := aeadEncrypt(dek, inputData)
+	if err != nil {
+		return fmt.Errorf("encrypt input: %w", err)
+	}
+
+	if err := encode(dst, cipherDek, encryptedData, round, chainHash); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 
 	return nil
+}
+
+// encode the meta data and encrypted data to the destination.
+func encode(dst io.Writer, cipherDek *ibe.Ciphertext, encryptedData []byte, roundID uint64, chainHash string) error {
+	kyberPoint, err := cipherDek.U.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("marshal binary: %w", err)
+	}
+
+	fmt.Fprintln(dst, strconv.Itoa(int(roundID)))
+	fmt.Fprintln(dst, chainHash)
+	fmt.Fprintln(dst, "--- HASH")
+
+	ww := bufio.NewWriter(dst)
+	defer ww.Flush()
+
+	ww.WriteString(fmt.Sprintf("%010d", len(kyberPoint)))
+	ww.Write(kyberPoint)
+
+	ww.WriteString(fmt.Sprintf("%010d", len(cipherDek.V)))
+	ww.Write(cipherDek.V)
+
+	ww.WriteString(fmt.Sprintf("%010d", len(cipherDek.W)))
+	ww.Write(cipherDek.W)
+
+	ww.WriteString(fmt.Sprintf("%010d", len(encryptedData)))
+	ww.Write(encryptedData)
+
+	return nil
+}
+
+// decodeInfo represents the different parts of any encrypted data.
+type decodeInfo struct {
+	roundID       uint64
+	chainHash     string
+	kyberPoint    []byte
+	cipherV       []byte
+	cipherW       []byte
+	encryptedData []byte
+}
+
+// decode the encrypted data into its different parts.
+func decode(src io.Reader) (decodeInfo, error) {
+	rr := bufio.NewReader(src)
+
+	roundIDStr, err := readHeaderLine(rr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read roundID: %w", err)
+	}
+
+	roundID, err := strconv.Atoi(roundIDStr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to convert round: %w", err)
+	}
+
+	chainHash, err := readHeaderLine(rr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
+	}
+
+	hdrHash, err := readHeaderLine(rr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read header hash: %w", err)
+	}
+
+	if hdrHash != "--- HASH" {
+		return decodeInfo{}, fmt.Errorf("invalid header hash: %w", err)
+	}
+
+	kyberPoint, err := readPayloadBytes(rr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read kyber point: %w", err)
+	}
+
+	cipherV, err := readPayloadBytes(rr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read cipher v: %w", err)
+	}
+
+	cipherW, err := readPayloadBytes(rr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
+	}
+
+	encryptedData, err := readPayloadBytes(rr)
+	if err != nil {
+		return decodeInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
+	}
+
+	di := decodeInfo{
+		roundID:       uint64(roundID),
+		chainHash:     chainHash,
+		kyberPoint:    kyberPoint,
+		cipherV:       cipherV,
+		cipherW:       cipherW,
+		encryptedData: encryptedData,
+	}
+
+	return di, nil
+}
+
+// readPayloadBytes reads the section of the payload.
+func readPayloadBytes(rr *bufio.Reader) ([]byte, error) {
+	lenStr := make([]byte, 10)
+	if _, err := rr.Read(lenStr); err != nil {
+		return nil, err
+	}
+
+	len, err := strconv.Atoi(string(lenStr))
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, len)
+	if _, err := rr.Read(data); err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+// readHeaderLine reads a line of header information.
+func readHeaderLine(rr *bufio.Reader) (string, error) {
+	text, err := rr.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+
+	return text[:len(text)-1], nil
 }
