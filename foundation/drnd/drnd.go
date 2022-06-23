@@ -1,9 +1,10 @@
 package drnd
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -183,14 +184,23 @@ func encode(dst io.Writer, cipher *ibe.Ciphertext, roundID uint64, network strin
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
+	// Write the header as plain text.
+	// Hash the header data using sha256 and write it.
+	// Encode the cipher data into binary encoding and write it.
+
 	rn := strconv.Itoa(int(roundID))
 	nt := network
 	ch := chainHash
-	kp := base64.StdEncoding.EncodeToString(kyberPoint)
-	cv := base64.StdEncoding.EncodeToString(cipher.V)
-	cw := base64.StdEncoding.EncodeToString(cipher.W)
+	// kp := base64.StdEncoding.EncodeToString(kyberPoint)
+	// cv := base64.StdEncoding.EncodeToString(cipher.V)
+	// cw := base64.StdEncoding.EncodeToString(cipher.W)
 
-	if _, err := fmt.Fprintf(dst, "%s\n%s\n%s\n%s\n%s\n%s", rn, nt, ch, kp, cv, cw); err != nil {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, kyberPoint)
+	binary.Write(buf, binary.LittleEndian, cipher.V)
+	binary.Write(buf, binary.LittleEndian, cipher.W)
+
+	if _, err := fmt.Fprintf(dst, "%s\n%s\n%s\n%s", rn, nt, ch, buf); err != nil {
 		return fmt.Errorf("writing encrypted message: %w", err)
 	}
 
@@ -215,7 +225,7 @@ func decode(src io.Reader) (decodeInfo, error) {
 	}
 
 	parts := strings.Split(string(encryptedData), "\n")
-	if len(parts) != 6 {
+	if len(parts) != 4 {
 		return decodeInfo{}, fmt.Errorf("invalid encrypted data: parts %d: %w", len(parts), err)
 	}
 
@@ -227,28 +237,34 @@ func decode(src io.Reader) (decodeInfo, error) {
 	network := parts[1]
 	chainHash := parts[2]
 
-	kyberPoint, err := base64.StdEncoding.DecodeString(parts[3])
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("decoding kyber point: %w", err)
-	}
+	res := []byte{}
 
-	cipherV, err := base64.StdEncoding.DecodeString(parts[4])
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("decoding cipher v: %w", err)
-	}
+	binary.Read(src, binary.LittleEndian, res)
 
-	cipherW, err := base64.StdEncoding.DecodeString(parts[5])
-	if err != nil {
-		return decodeInfo{}, fmt.Errorf("decoding cipher w: %w", err)
-	}
+	fmt.Println(string(res))
+
+	// kyberPoint, err := base64.StdEncoding.DecodeString(parts[3])
+	// if err != nil {
+	// 	return decodeInfo{}, fmt.Errorf("decoding kyber point: %w", err)
+	// }
+
+	// cipherV, err := base64.StdEncoding.DecodeString(parts[4])
+	// if err != nil {
+	// 	return decodeInfo{}, fmt.Errorf("decoding cipher v: %w", err)
+	// }
+
+	// cipherW, err := base64.StdEncoding.DecodeString(parts[5])
+	// if err != nil {
+	// 	return decodeInfo{}, fmt.Errorf("decoding cipher w: %w", err)
+	// }
 
 	di := decodeInfo{
-		roundID:    uint64(roundID),
-		network:    network,
-		chainHash:  chainHash,
-		kyberPoint: kyberPoint,
-		cipherV:    cipherV,
-		cipherW:    cipherW,
+		roundID:   uint64(roundID),
+		network:   network,
+		chainHash: chainHash,
+		// kyberPoint: kyberPoint,
+		// cipherV:    cipherV,
+		// cipherW:    cipherW,
 	}
 
 	return di, nil
