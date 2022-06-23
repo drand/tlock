@@ -21,29 +21,6 @@ import (
 	"github.com/drand/kyber/pairing"
 )
 
-func encrypt(dst io.Writer, dataToEncrypt io.Reader, network string, ni networkInfo, chainHash string, round uint64, roundSignature []byte) error {
-	suite, err := retrievePairingSuite()
-	if err != nil {
-		return fmt.Errorf("pairing suite: %w", err)
-	}
-
-	inputData, err := io.ReadAll(dataToEncrypt)
-	if err != nil {
-		return fmt.Errorf("reading input data: %w", err)
-	}
-
-	cipher, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundSignature, inputData)
-	if err != nil {
-		return fmt.Errorf("encrypt: %w", err)
-	}
-
-	if err := encode(dst, cipher, round, network, chainHash); err != nil {
-		return fmt.Errorf("encode: %w", err)
-	}
-
-	return nil
-}
-
 // EncryptWithRound will encrypt the message to be decrypted in the future based
 // on the specified round.
 func EncryptWithRound(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, network string, chainHash string, round uint64) error {
@@ -275,4 +252,28 @@ func decode(src io.Reader) (decodeInfo, error) {
 	}
 
 	return di, nil
+}
+
+// encrypt provides base functionality for all encryption operations.
+func encrypt(dst io.Writer, dataToEncrypt io.Reader, network string, ni networkInfo, chainHash string, round uint64, roundSignature []byte) error {
+	suite, err := retrievePairingSuite()
+	if err != nil {
+		return fmt.Errorf("pairing suite: %w", err)
+	}
+
+	inputData, err := io.ReadAll(dataToEncrypt)
+	if err != nil {
+		return fmt.Errorf("reading input data: %w", err)
+	}
+
+	cipher, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundSignature, inputData)
+	if err != nil {
+		return fmt.Errorf("encrypt: %w", err)
+	}
+
+	if err := encode(dst, cipher, round, network, chainHash); err != nil {
+		return fmt.Errorf("encode: %w", err)
+	}
+
+	return nil
 }
