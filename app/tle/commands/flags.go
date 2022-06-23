@@ -39,11 +39,30 @@ type Flags struct {
 	ArmorFlag    bool
 }
 
-// ParseFlags will parse all the command line flags. If any parse fails, the
-// default behavior is to terminate the program.
-func ParseFlags() Flags {
+// Parse will parse the environment variables and command line flags. The command
+// line flags will overwrite environment variables.
+func Parse() Flags {
+	var f Flags
+
+	// env := parseEnv()
+	cmd := parseCmdline()
+
+	// Join f together
+	f = cmd
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
+	return f
+}
+
+// parseEnv will parse the environment variables.
+func parseEnv() Flags {
+	// kelsey envconfig
+
+	return Flags{}
+}
+
+// parseCmdline will parse all the command line flags.
+func parseCmdline() Flags {
 	var f Flags
 
 	flag.BoolVar(&f.EncryptFlag, "e", false, "encrypt the input to the output")

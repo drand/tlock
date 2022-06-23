@@ -13,10 +13,9 @@ import (
 )
 
 /*
-	-- pair suite configuration.
-	- Implement all the flags except armor.
+	- pair suite configuration
+	- All the flags working in combinations
 	- Add support for environment variables (kelsey envconfig)
-	- Improve error messages?
 
 	- Write unit tests with container running network.
 	- Write unit tests with some form of mocking for negative path.
@@ -38,7 +37,7 @@ func main() {
 }
 
 func run(log *log.Logger) error {
-	flags := commands.ParseFlags()
+	flags := commands.Parse()
 	if err := commands.ValidateFlags(flags); err != nil {
 		return err
 	}
