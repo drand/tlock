@@ -37,7 +37,10 @@ func main() {
 }
 
 func run(log *log.Logger) error {
-	flags := commands.Parse()
+	flags, err := commands.Parse()
+	if err != nil {
+		return err
+	}
 	if err := commands.ValidateFlags(flags); err != nil {
 		return err
 	}
@@ -53,7 +56,7 @@ func run(log *log.Logger) error {
 	}
 
 	var dst io.Writer = os.Stdout
-	if name := flags.OutputFlag; name != "" && name != "-" {
+	if name := flags.Output; name != "" && name != "-" {
 		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
@@ -67,7 +70,7 @@ func run(log *log.Logger) error {
 	defer cancel()
 
 	switch {
-	case flags.DecryptFlag:
+	case flags.Decrypt:
 		return commands.Decrypt(ctx, flags, dataToEncrypt)
 	default:
 		return commands.Encrypt(ctx, flags, dst, dataToEncrypt)

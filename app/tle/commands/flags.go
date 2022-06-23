@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"github.com/kelseyhightower/envconfig"
 )
 
 const usage = `USAGE:
@@ -29,70 +31,78 @@ func PrintUsage(log *log.Logger) {
 
 // flags represent the values from the command line.
 type Flags struct {
-	EncryptFlag  bool
-	DecryptFlag  bool
-	NetworkFlag  string
-	ChainFlag    string
-	RoundFlag    int
-	DurationFlag string
-	OutputFlag   string
-	ArmorFlag    bool
+	Encrypt  bool
+	Decrypt  bool
+	Network  string
+	Chain    string
+	Round    int
+	Duration string
+	Output   string
+	Armor    bool
 }
 
 // Parse will parse the environment variables and command line flags. The command
 // line flags will overwrite environment variables.
-func Parse() Flags {
+func Parse() (Flags, error) {
 	var f Flags
 
-	// env := parseEnv()
-	cmd := parseCmdline()
+	env, err := parseEnv()
+	if err != nil {
+		return f, err
+	}
 
-	// Join f together
-	f = cmd
+	// Set enviroment variable as default.
+	f = env
+
+	// CLI flags will overwrite the env values.
+	parseCmdline(&f)
+
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
-	return f
+	return f, nil
 }
 
 // parseEnv will parse the environment variables.
-func parseEnv() Flags {
-	// kelsey envconfig
+func parseEnv() (Flags, error) {
+	var f Flags
+	if err := envconfig.Process("tle", &f); err != nil {
+		return f, fmt.Errorf("parse env: %w", err)
+	}
 
-	return Flags{}
+	return f, nil
 }
 
 // parseCmdline will parse all the command line flags.
-func parseCmdline() Flags {
-	var f Flags
+// The default value is set to the values parsed by the environment variables.
+func parseCmdline(f *Flags) *Flags {
+	flag.BoolVar(&f.Encrypt, "e", f.Encrypt, "encrypt the input to the output")
+	flag.BoolVar(&f.Encrypt, "encrypt", f.Encrypt, "encrypt the input to the output")
 
-	flag.BoolVar(&f.EncryptFlag, "e", false, "encrypt the input to the output")
-	flag.BoolVar(&f.EncryptFlag, "encrypt", false, "encrypt the input to the output")
+	flag.BoolVar(&f.Decrypt, "d", f.Decrypt, "decrypt the input to the output")
+	flag.BoolVar(&f.Decrypt, "decrypt", f.Decrypt, "decrypt the input to the output")
 
-	flag.BoolVar(&f.DecryptFlag, "d", false, "decrypt the input to the output")
-	flag.BoolVar(&f.DecryptFlag, "decrypt", false, "decrypt the input to the output")
+	flag.StringVar(&f.Network, "n", f.Network, "the drand API endpoint")
+	flag.StringVar(&f.Network, "network", f.Network, "the drand API endpoint")
 
-	flag.StringVar(&f.NetworkFlag, "n", "", "the drand API endpoint")
-	flag.StringVar(&f.NetworkFlag, "network", "", "the drand API endpoint")
+	flag.StringVar(&f.Chain, "c", f.Chain, "chain to use")
+	flag.StringVar(&f.Chain, "chain", f.Chain, "chain to use")
 
-	flag.StringVar(&f.ChainFlag, "c", "", "chain to use")
-	flag.StringVar(&f.ChainFlag, "chain", "", "chain to use")
+	flag.IntVar(&f.Round, "r", f.Round, "the specific round to use; cannot be used with --duration")
+	flag.IntVar(&f.Round, "round", f.Round, "the specific round to use; cannot be used with --duration")
 
-	flag.IntVar(&f.RoundFlag, "r", 0, "the specific round to use; cannot be used with --duration")
-	flag.IntVar(&f.RoundFlag, "round", 0, "the specific round to use; cannot be used with --duration")
+	flag.StringVar(&f.Duration, "D", f.Duration, "how long to wait before being able to decrypt")
+	flag.StringVar(&f.Duration, "duration", f.Duration, "how long to wait before being able to decrypt")
 
-	flag.StringVar(&f.DurationFlag, "D", "", "how long to wait before being able to decrypt")
-	flag.StringVar(&f.DurationFlag, "duration", "", "how long to wait before being able to decrypt")
+	flag.StringVar(&f.Output, "o", f.Output, "the path to the output file")
+	flag.StringVar(&f.Output, "output", f.Output, "the path to the output file")
 
-	flag.StringVar(&f.OutputFlag, "o", "", "the path to the output file")
-	flag.StringVar(&f.OutputFlag, "output", "", "the path to the output file")
-
-	flag.BoolVar(&f.ArmorFlag, "a", false, "encrypt to a PEM encoded format")
-	flag.BoolVar(&f.ArmorFlag, "armor", false, "encrypt to a PEM encoded format")
+	flag.BoolVar(&f.Armor, "a", f.Armor, "encrypt to a PEM encoded format")
+	flag.BoolVar(&f.Armor, "armor", f.Armor, "encrypt to a PEM encoded format")
 
 	flag.Parse()
 
-	if f.NetworkFlag == "" {
-		f.NetworkFlag = "http://pl-us.testnet.drand.sh/"
+	if f.Network == "" {
+		f.Network = "http://pl-us.testnet.drand.sh/"
 	}
 
 	return f
@@ -101,24 +111,24 @@ func parseCmdline() Flags {
 // ValidateFlags performs a sanity check of the provided flag information.
 func ValidateFlags(f Flags) error {
 	switch {
-	case f.DecryptFlag:
-		if f.EncryptFlag {
+	case f.Decrypt:
+		if f.Encrypt {
 			return fmt.Errorf("-e/--encrypt can't be used with -d/--decrypt")
 		}
-		if f.ArmorFlag {
+		if f.Armor {
 			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
 		}
-		if f.DurationFlag != "" {
+		if f.Duration != "" {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
 		}
 	default:
-		if f.ChainFlag == "" {
+		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")
 		}
-		if f.DurationFlag != "" && f.RoundFlag != 0 {
+		if f.Duration != "" && f.Round != 0 {
 			return fmt.Errorf("-D/--duration can't be used with -r/--round")
 		}
-		if f.DurationFlag == "" && f.RoundFlag == 0 {
+		if f.Duration == "" && f.Round == 0 {
 			return fmt.Errorf("-D/--duration or -r/--round must be specified")
 		}
 	}

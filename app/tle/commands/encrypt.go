@@ -11,15 +11,15 @@ import (
 
 // Encrypt performs the encryption operation.
 func Encrypt(ctx context.Context, flags Flags, dst io.Writer, dataToEncrypt io.Reader) error {
-	if flags.DurationFlag != "" {
-		duration, err := time.ParseDuration(flags.DurationFlag)
+	if flags.Duration != "" {
+		duration, err := time.ParseDuration(flags.Duration)
 		if err != nil {
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		return drnd.EncryptWithDuration(ctx, dst, dataToEncrypt, flags.NetworkFlag, flags.ChainFlag, duration)
+		return drnd.EncryptWithDuration(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, duration)
 	}
 
 	// Default to round
-	return drnd.EncryptWithRound(ctx, dst, dataToEncrypt, flags.NetworkFlag, flags.ChainFlag, uint64(flags.RoundFlag))
+	return drnd.EncryptWithRound(ctx, dst, dataToEncrypt, flags.Network, flags.Chain, uint64(flags.Round))
 }
