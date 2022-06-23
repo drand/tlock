@@ -99,10 +99,9 @@ func ValidateFlags(f Flags) error {
 		if f.DurationFlag != "" && f.RoundFlag != 0 {
 			return fmt.Errorf("-D/--duration can't be used with -r/--round")
 		}
-	}
-
-	if f.RoundFlag < 0 {
-		return fmt.Errorf("-r/--round should be a positive integer")
+		if f.DurationFlag == "" && f.RoundFlag == 0 {
+			return fmt.Errorf("-D/--duration or -r/--round must be specified")
+		}
 	}
 
 	return nil

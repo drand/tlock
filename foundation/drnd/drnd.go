@@ -21,19 +21,7 @@ import (
 	"github.com/drand/kyber/pairing"
 )
 
-// Encrypt will encrypt the message to be decrypted in the future based on the
-// specified duration.
-func Encrypt(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, network string, chainHash string, duration time.Duration) error {
-	ni, err := retrieveNetworkInfo(ctx, network, chainHash)
-	if err != nil {
-		return fmt.Errorf("network info: %w", err)
-	}
-
-	roundIDHash, roundID, err := calculateRound(duration, ni)
-	if err != nil {
-		return fmt.Errorf("calculate future round: %w", err)
-	}
-
+func encrypt(dst io.Writer, dataToEncrypt io.Reader, network string, ni networkInfo, chainHash string, round uint64, roundSignature []byte) error {
 	suite, err := retrievePairingSuite()
 	if err != nil {
 		return fmt.Errorf("pairing suite: %w", err)
@@ -44,16 +32,48 @@ func Encrypt(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, networ
 		return fmt.Errorf("reading input data: %w", err)
 	}
 
-	cipher, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundIDHash, inputData)
+	cipher, err := ibe.Encrypt(suite, ni.chain.PublicKey, roundSignature, inputData)
 	if err != nil {
 		return fmt.Errorf("encrypt: %w", err)
 	}
 
-	if err := encode(dst, cipher, roundID, network, chainHash); err != nil {
+	if err := encode(dst, cipher, round, network, chainHash); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 
 	return nil
+}
+
+// EncryptWithRound will encrypt the message to be decrypted in the future based
+// on the specified round.
+func EncryptWithRound(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, network string, chainHash string, round uint64) error {
+	ni, err := retrieveNetworkInfo(ctx, network, chainHash)
+	if err != nil {
+		return fmt.Errorf("network info: %w", err)
+	}
+
+	roundData, err := ni.client.Get(ctx, round)
+	if err != nil {
+		return fmt.Errorf("client get round: %w", err)
+	}
+
+	return encrypt(dst, dataToEncrypt, network, ni, chainHash, roundData.Round(), roundData.Signature())
+}
+
+// EncryptWithDuration will encrypt the message to be decrypted in the future based
+// on the specified duration.
+func EncryptWithDuration(ctx context.Context, dst io.Writer, dataToEncrypt io.Reader, network string, chainHash string, duration time.Duration) error {
+	ni, err := retrieveNetworkInfo(ctx, network, chainHash)
+	if err != nil {
+		return fmt.Errorf("network info: %w", err)
+	}
+
+	roundIDHash, roundID, err := calculateRound(duration, ni)
+	if err != nil {
+		return fmt.Errorf("calculate future round: %w", err)
+	}
+
+	return encrypt(dst, dataToEncrypt, network, ni, chainHash, roundID, roundIDHash)
 }
 
 // Decrypt reads the encrypted output from the Encrypt function and decrypts
