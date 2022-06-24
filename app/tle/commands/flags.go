@@ -51,7 +51,7 @@ type Flags struct {
 }
 
 // Parse will parse the environment variables and command line flags. The command
-// line flags will overwrite environment variables.
+// line flags will overwrite environment variables. Validation takes place.
 func Parse() (Flags, error) {
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
@@ -63,6 +63,10 @@ func Parse() (Flags, error) {
 
 	envconfig.Process("tle", &f)
 	parseCmdline(&f)
+
+	if err := validateFlags(f); err != nil {
+		return Flags{}, err
+	}
 
 	return f, nil
 }
@@ -99,8 +103,8 @@ func parseCmdline(f *Flags) *Flags {
 	return f
 }
 
-// ValidateFlags performs a sanity check of the provided flag information.
-func ValidateFlags(f Flags) error {
+// validateFlags performs a sanity check of the provided flag information.
+func validateFlags(f Flags) error {
 	switch {
 	case f.Decrypt:
 		if f.Encrypt {

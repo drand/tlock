@@ -35,11 +35,7 @@ func main() {
 func run(log *log.Logger) error {
 	flags, err := commands.Parse()
 	if err != nil {
-		return err
-	}
-
-	if err := commands.ValidateFlags(flags); err != nil {
-		return err
+		return fmt.Errorf("parse commands: %v", err)
 	}
 
 	var in io.Reader = os.Stdin
