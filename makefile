@@ -15,14 +15,6 @@ run-encrypt-a:
 run-decrypt-a:
 	go run app/tle/main.go -d -n="http://pl-us.testnet.drand.sh/" -o=decryptedArmor.pem encryptedArmor.pem
 
-docker-build:
-	docker build \
-		-f zarf/docker/Dockerfile \
-		-t local-drand \
-		zarf/docker
-
-docker-run:
-	docker run --rm -p 5101:5101 local-drand
 
 # ==============================================================================
 # Modules support

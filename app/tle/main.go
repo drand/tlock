@@ -13,7 +13,7 @@ import (
 )
 
 /*
-	- Write unit tests with container running network.
+	- Write unit tests with test network.
 	- Write unit tests with some form of mocking for negative path.
 */
 
