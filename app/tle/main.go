@@ -13,8 +13,6 @@ import (
 )
 
 /*
-	- Validate default flags don't override env var.
-
 	- Write unit tests with container running network.
 	- Write unit tests with some form of mocking for negative path.
 */
