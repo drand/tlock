@@ -55,6 +55,10 @@ func Parse() (Flags, error) {
 		return Flags{}, fmt.Errorf("parse env: %w", err)
 	}
 
+	if f.Network == "" {
+		f.Network = defaultNetwork
+	}
+
 	parseCmdline(&f)
 
 	return f, nil
@@ -88,10 +92,6 @@ func parseCmdline(f *Flags) *Flags {
 	flag.BoolVar(&f.Armor, "armor", f.Armor, "encrypt to a PEM encoded format")
 
 	flag.Parse()
-
-	if f.Network == "" {
-		f.Network = defaultNetwork
-	}
 
 	return f
 }
