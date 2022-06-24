@@ -9,7 +9,12 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-const defaultNetwork = "http://pl-us.testnet.drand.sh/"
+// Default settings.
+const (
+	defaultNetwork  = "http://pl-us.testnet.drand.sh/"
+	defaultChain    = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+	defaultDuration = "120d"
+)
 
 // =============================================================================
 
@@ -50,15 +55,13 @@ type Flags struct {
 func Parse() (Flags, error) {
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
-	var f Flags
-	if err := envconfig.Process("tle", &f); err != nil {
-		return Flags{}, fmt.Errorf("parse env: %w", err)
+	f := Flags{
+		Network:  defaultNetwork,
+		Chain:    defaultChain,
+		Duration: defaultDuration,
 	}
 
-	if f.Network == "" {
-		f.Network = defaultNetwork
-	}
-
+	envconfig.Process("tle", &f)
 	parseCmdline(&f)
 
 	return f, nil
