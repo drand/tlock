@@ -48,15 +48,10 @@ type Decrypter interface {
 func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network Network, enc Encrypter, roundNumber uint64, armor bool) error {
 	roundID, roundSignature, err := network.RoundByNumber(ctx, roundNumber)
 	if err != nil {
-		return fmt.Errorf("network client: %w", err)
+		return fmt.Errorf("round by number: %w", err)
 	}
 
-	publicKey, err := network.PublicKey(ctx)
-	if err != nil {
-		return fmt.Errorf("public key: %w", err)
-	}
-
-	return encrypt(out, in, enc, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
+	return encrypt(ctx, out, in, enc, network, roundID, roundSignature, armor)
 }
 
 // EncryptWithDuration will encrypt the data that is read by the reader which can
@@ -64,21 +59,14 @@ func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network 
 func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, network Network, enc Encrypter, duration time.Duration, armor bool) error {
 	roundID, roundSignature, err := network.RoundByDuration(ctx, duration)
 	if err != nil {
-		return fmt.Errorf("network client: %w", err)
+		return fmt.Errorf("round by duration: %w", err)
 	}
 
-	publicKey, err := network.PublicKey(ctx)
-	if err != nil {
-		return fmt.Errorf("public key: %w", err)
-	}
-
-	network.PairingSuite()
-
-	return encrypt(out, in, enc, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
+	return encrypt(ctx, out, in, enc, network, roundID, roundSignature, armor)
 }
 
 // encrypt provides base functionality for all encryption operations.
-func encrypt(out io.Writer, in io.Reader, enc Encrypter, publickKey kyber.Point, chainHash string, roundID uint64, roundSignature []byte, pairingSuite pairing.Suite, armor bool) error {
+func encrypt(ctx context.Context, out io.Writer, in io.Reader, enc Encrypter, network Network, roundID uint64, roundSignature []byte, armor bool) error {
 	data, err := io.ReadAll(in)
 	if err != nil {
 		return fmt.Errorf("reading input data: %w", err)
@@ -90,7 +78,12 @@ func encrypt(out io.Writer, in io.Reader, enc Encrypter, publickKey kyber.Point,
 		return fmt.Errorf("random key: %w", err)
 	}
 
-	cipherDEK, err := ibe.Encrypt(pairingSuite, publickKey, roundSignature, dek)
+	publicKey, err := network.PublicKey(ctx)
+	if err != nil {
+		return fmt.Errorf("public key: %w", err)
+	}
+
+	cipherDEK, err := ibe.Encrypt(network.PairingSuite(), publicKey, roundSignature, dek)
 	if err != nil {
 		return fmt.Errorf("encrypt dek: %w", err)
 	}
@@ -102,7 +95,7 @@ func encrypt(out io.Writer, in io.Reader, enc Encrypter, publickKey kyber.Point,
 
 	metadata := metadata{
 		roundID:   roundID,
-		chainHash: chainHash,
+		chainHash: network.ChainHash(),
 	}
 
 	if err := write(out, cipherDEK, cipherData, metadata, armor); err != nil {
