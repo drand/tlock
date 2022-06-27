@@ -31,11 +31,21 @@ type Network interface {
 	RoundByDuration(ctx context.Context, duration time.Duration) (roundID uint64, roundSignature []byte, err error)
 }
 
+// Encrypter declares an API for encrypting plain data with the specified key.
+type Encrypter interface {
+	Encrypt(key []byte, plainData []byte) (cipherData []byte, err error)
+}
+
+// Decrypter declares an API for decrypting cipher data with the specified key.
+type Decrypter interface {
+	Decrypt(key []byte, cipherData []byte) (plainData []byte, err error)
+}
+
 // =============================================================================
 
 // EncryptWithRound will encrypt the data that is read by the reader which can
 // only be decrypted in the future specified round.
-func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network Network, roundNumber uint64, armor bool) error {
+func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network Network, enc Encrypter, roundNumber uint64, armor bool) error {
 	roundID, roundSignature, err := network.RoundByNumber(ctx, roundNumber)
 	if err != nil {
 		return fmt.Errorf("network client: %w", err)
@@ -46,12 +56,12 @@ func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network 
 		return fmt.Errorf("public key: %w", err)
 	}
 
-	return encrypt(out, in, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
+	return encrypt(out, in, enc, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
 }
 
 // EncryptWithDuration will encrypt the data that is read by the reader which can
 // only be decrypted in the future specified duration.
-func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, network Network, duration time.Duration, armor bool) error {
+func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, network Network, enc Encrypter, duration time.Duration, armor bool) error {
 	roundID, roundSignature, err := network.RoundByDuration(ctx, duration)
 	if err != nil {
 		return fmt.Errorf("network client: %w", err)
@@ -64,12 +74,12 @@ func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, netwo
 
 	network.PairingSuite()
 
-	return encrypt(out, in, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
+	return encrypt(out, in, enc, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
 }
 
 // encrypt provides base functionality for all encryption operations.
-func encrypt(out io.Writer, in io.Reader, publickKey kyber.Point, chainHash string, roundID uint64, roundSignature []byte, pairingSuite pairing.Suite, armor bool) error {
-	inputData, err := io.ReadAll(in)
+func encrypt(out io.Writer, in io.Reader, enc Encrypter, publickKey kyber.Point, chainHash string, roundID uint64, roundSignature []byte, pairingSuite pairing.Suite, armor bool) error {
+	data, err := io.ReadAll(in)
 	if err != nil {
 		return fmt.Errorf("reading input data: %w", err)
 	}
@@ -85,9 +95,9 @@ func encrypt(out io.Writer, in io.Reader, publickKey kyber.Point, chainHash stri
 		return fmt.Errorf("encrypt dek: %w", err)
 	}
 
-	cipherText, err := aeadEncrypt(dek, inputData)
+	cipherData, err := enc.Encrypt(dek, data)
 	if err != nil {
-		return fmt.Errorf("encrypt input: %w", err)
+		return fmt.Errorf("encrypt data: %w", err)
 	}
 
 	metadata := metadata{
@@ -95,29 +105,31 @@ func encrypt(out io.Writer, in io.Reader, publickKey kyber.Point, chainHash stri
 		chainHash: chainHash,
 	}
 
-	if err := write(out, cipherDEK, cipherText, metadata, armor); err != nil {
+	if err := write(out, cipherDEK, cipherData, metadata, armor); err != nil {
 		return fmt.Errorf("encode: %w", err)
 	}
 
 	return nil
 }
 
+// =============================================================================
+
 // Decrypt will decrypt the data that is read by the reader and writes the
 // original data to the output.
-func Decrypt(ctx context.Context, out io.Writer, in io.Reader, network Network) error {
+func Decrypt(ctx context.Context, out io.Writer, in io.Reader, network Network, dec Decrypter) error {
 	file, err := read(in)
 	if err != nil {
 		return fmt.Errorf("decode: %w", err)
 	}
 
-	plainDEK, err := DecryptDEK(ctx, file.cipherDEK, network, file.metadata.roundID)
+	plainDEK, err := decryptDEK(ctx, file.cipherDEK, network, file.metadata.roundID)
 	if err != nil {
 		return fmt.Errorf("decrypt dek: %w", err)
 	}
 
-	plainData, err := DecryptData(plainDEK, file.cipherData)
+	plainData, err := dec.Decrypt(plainDEK, file.cipherData)
 	if err != nil {
-		return fmt.Errorf("decrypt: %w", err)
+		return fmt.Errorf("decrypt data: %w", err)
 	}
 
 	if _, err := out.Write(plainData); err != nil {
@@ -127,9 +139,9 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, network Network) 
 	return nil
 }
 
-// DecryptDEK attempts to decrypt an encrypted DEK against the provided network
+// decryptDEK attempts to decrypt an encrypted DEK against the provided network
 // for the specified round.
-func DecryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
+func decryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
 	_, roundSignature, err := network.RoundByNumber(ctx, roundNumber)
 	if err != nil {
 		return nil, errors.New("too early to decrypt")
@@ -164,15 +176,7 @@ func DecryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, round
 	return plainDEK, nil
 }
 
-// DecryptData decrypts the message with the specified data encryption key.
-func DecryptData(plainDEK []byte, cipherData []byte) (plainData []byte, err error) {
-	plainData, err = aeadDecrypt(plainDEK, cipherData)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt data: %w", err)
-	}
-
-	return plainData, nil
-}
+// =============================================================================
 
 // CalculateRound will generate the round information based on the specified duration.
 func CalculateRound(ctx context.Context, duration time.Duration, network Network) (roundID uint64, roundSignature []byte, err error) {

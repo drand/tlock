@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/drand/tlock/foundation/drnd"
+	"github.com/drand/tlock/foundation/encrypters/aead"
 	"github.com/drand/tlock/foundation/networks/http"
 )
 
 // Encrypt performs the encryption operation.
 func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) error {
+	var aead aead.AEAD
 	network := http.New(flags.Network, flags.Chain)
 
 	if flags.Duration != "" {
@@ -20,17 +22,18 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) erro
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		return drnd.EncryptWithDuration(ctx, out, in, network, duration, flags.Armor)
+		return drnd.EncryptWithDuration(ctx, out, in, network, aead, duration, flags.Armor)
 	}
 
-	return drnd.EncryptWithRound(ctx, out, in, network, flags.Round, flags.Armor)
+	return drnd.EncryptWithRound(ctx, out, in, network, aead, flags.Round, flags.Armor)
 }
 
 // Decrypt performs the decryption operation.
 func Decrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) error {
+	var aead aead.AEAD
 	network := http.New(flags.Network, flags.Chain)
 
-	if err := drnd.Decrypt(ctx, out, in, network); err != nil {
+	if err := drnd.Decrypt(ctx, out, in, network, aead); err != nil {
 		return err
 	}
 
