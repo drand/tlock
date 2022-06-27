@@ -113,7 +113,7 @@ func validateFlags(f Flags) error {
 		if f.Armor {
 			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
 		}
-		if f.Duration != "" {
+		if f.Duration != defaultDuration {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
 		}
 
