@@ -1,8 +1,8 @@
 # Mac files
 .DS*
 
-encryptedFile.txt
-decryptedFile.txt
+encryptedFile
+decryptedFile
 encryptedArmor.pem
 decryptedArmor.pem
 

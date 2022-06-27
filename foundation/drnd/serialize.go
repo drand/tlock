@@ -64,16 +64,9 @@ func write(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md metad
 	fmt.Fprintln(ww, strconv.Itoa(int(md.roundID)))
 	fmt.Fprintln(ww, md.chainHash)
 
-	fmt.Fprintf(ww, "%010d", len(kyberPoint))
 	ww.Write(kyberPoint)
-
-	fmt.Fprintf(ww, "%010d", len(cipherDEK.V))
 	ww.Write(cipherDEK.V)
-
-	fmt.Fprintf(ww, "%010d", len(cipherDEK.W))
 	ww.Write(cipherDEK.W)
-
-	fmt.Fprintf(ww, "%010d", len(cipherText))
 	ww.Write(cipherText)
 
 	return nil
@@ -111,22 +104,22 @@ func read(in io.Reader) (file, error) {
 		return file{}, fmt.Errorf("failed to read chain hash: %w", err)
 	}
 
-	kyberPoint, err := readPayloadBytes(rr)
+	kyberPoint, err := readPayloadBytes(rr, 48)
 	if err != nil {
 		return file{}, fmt.Errorf("failed to read kyber point: %w", err)
 	}
 
-	cipherV, err := readPayloadBytes(rr)
+	cipherV, err := readPayloadBytes(rr, 32)
 	if err != nil {
 		return file{}, fmt.Errorf("failed to read cipher v: %w", err)
 	}
 
-	cipherW, err := readPayloadBytes(rr)
+	cipherW, err := readPayloadBytes(rr, 32)
 	if err != nil {
 		return file{}, fmt.Errorf("failed to read cipher w: %w", err)
 	}
 
-	cipherData, err := readPayloadBytes(rr)
+	cipherData, err := readPayloadBytes(rr, 0)
 	if err != nil {
 		return file{}, fmt.Errorf("failed to read cipher text w: %w", err)
 	}
@@ -148,15 +141,9 @@ func read(in io.Reader) (file, error) {
 }
 
 // readPayloadBytes reads the section of the payload.
-func readPayloadBytes(rr *bufio.Reader) ([]byte, error) {
-	lenStr := make([]byte, 10)
-	if _, err := rr.Read(lenStr); err != nil {
-		return nil, err
-	}
-
-	len, err := strconv.Atoi(string(lenStr))
-	if err != nil {
-		return nil, err
+func readPayloadBytes(rr *bufio.Reader, len int) ([]byte, error) {
+	if len == 0 {
+		len = rr.Buffered()
 	}
 
 	data := make([]byte, len)

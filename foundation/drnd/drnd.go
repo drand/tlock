@@ -1,3 +1,5 @@
+// Package drnd provides an API for encrypting and decrypting data using
+// drand time lock encryption.
 package drnd
 
 import (
@@ -18,27 +20,25 @@ import (
 )
 
 // Network represents a network that is used to encrypt and decrypt a DEK
-// (Data Encryption Key) for use in encrypting and decrypting messages.
+// (Data Encryption Key) for use in encrypting and decrypting data.
 type Network interface {
 	Host() string
 	ChainHash() string
+	PairingSuite() pairing.Suite
 	Client(ctx context.Context) (client.Client, error)
 	PublicKey(ctx context.Context) (kyber.Point, error)
+	RoundByNumber(ctx context.Context, roundNumber uint64) (roundID uint64, roundSignature []byte, err error)
+	RoundByDuration(ctx context.Context, duration time.Duration) (roundID uint64, roundSignature []byte, err error)
 }
 
 // =============================================================================
 
-// EncryptWithRound will encrypt the plaintext that can only be decrypted in the
-// future specified round.
-func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network Network, round uint64, armor bool) error {
-	client, err := network.Client(ctx)
+// EncryptWithRound will encrypt the data that is read by the reader which can
+// only be decrypted in the future specified round.
+func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network Network, roundNumber uint64, armor bool) error {
+	roundID, roundSignature, err := network.RoundByNumber(ctx, roundNumber)
 	if err != nil {
 		return fmt.Errorf("network client: %w", err)
-	}
-
-	roundData, err := client.Get(ctx, round)
-	if err != nil {
-		return fmt.Errorf("client get round: %w", err)
 	}
 
 	publicKey, err := network.PublicKey(ctx)
@@ -46,20 +46,15 @@ func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, network 
 		return fmt.Errorf("public key: %w", err)
 	}
 
-	return encrypt(out, in, publicKey, network.ChainHash(), roundData.Round(), roundData.Signature(), armor)
+	return encrypt(out, in, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
 }
 
-// EncryptWithDuration will encrypt the plaintext that can only be decrypted in the
-// future specified duration.
+// EncryptWithDuration will encrypt the data that is read by the reader which can
+// only be decrypted in the future specified duration.
 func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, network Network, duration time.Duration, armor bool) error {
-	client, err := network.Client(ctx)
+	roundID, roundSignature, err := network.RoundByDuration(ctx, duration)
 	if err != nil {
 		return fmt.Errorf("network client: %w", err)
-	}
-
-	roundIDHash, roundID, err := calculateRound(duration, client)
-	if err != nil {
-		return fmt.Errorf("calculate future round: %w", err)
 	}
 
 	publicKey, err := network.PublicKey(ctx)
@@ -67,16 +62,13 @@ func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, netwo
 		return fmt.Errorf("public key: %w", err)
 	}
 
-	return encrypt(out, in, publicKey, network.ChainHash(), roundID, roundIDHash, armor)
+	network.PairingSuite()
+
+	return encrypt(out, in, publicKey, network.ChainHash(), roundID, roundSignature, network.PairingSuite(), armor)
 }
 
 // encrypt provides base functionality for all encryption operations.
-func encrypt(out io.Writer, in io.Reader, publickKey kyber.Point, chainHash string, roundID uint64, roundSignature []byte, armor bool) error {
-	suite, err := retrievePairingSuite()
-	if err != nil {
-		return fmt.Errorf("pairing suite: %w", err)
-	}
-
+func encrypt(out io.Writer, in io.Reader, publickKey kyber.Point, chainHash string, roundID uint64, roundSignature []byte, pairingSuite pairing.Suite, armor bool) error {
 	inputData, err := io.ReadAll(in)
 	if err != nil {
 		return fmt.Errorf("reading input data: %w", err)
@@ -88,7 +80,7 @@ func encrypt(out io.Writer, in io.Reader, publickKey kyber.Point, chainHash stri
 		return fmt.Errorf("random key: %w", err)
 	}
 
-	cipherDEK, err := ibe.Encrypt(suite, publickKey, roundSignature, dek)
+	cipherDEK, err := ibe.Encrypt(pairingSuite, publickKey, roundSignature, dek)
 	if err != nil {
 		return fmt.Errorf("encrypt dek: %w", err)
 	}
@@ -110,7 +102,7 @@ func encrypt(out io.Writer, in io.Reader, publickKey kyber.Point, chainHash stri
 	return nil
 }
 
-// Decrypt reads the ciphertext from the encrypted tle source and writes the
+// Decrypt will decrypt the data that is read by the reader and writes the
 // original data to the output.
 func Decrypt(ctx context.Context, out io.Writer, in io.Reader, network Network) error {
 	file, err := read(in)
@@ -137,27 +129,14 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, network Network) 
 
 // DecryptDEK attempts to decrypt an encrypted DEK against the provided network
 // for the specified round.
-func DecryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, roundID uint64) (plainDEK []byte, err error) {
-	client, err := network.Client(ctx)
+func DecryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
+	_, roundSignature, err := network.RoundByNumber(ctx, roundNumber)
 	if err != nil {
-		return nil, fmt.Errorf("network client: %w", err)
-	}
-
-	suite, err := retrievePairingSuite()
-	if err != nil {
-		return nil, fmt.Errorf("pairing suite: %w", err)
-	}
-
-	clientResult, err := client.Get(ctx, roundID)
-	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, errors.New("too early to decrypt")
-		}
-		return nil, fmt.Errorf("client get round: %w", err)
+		return nil, errors.New("too early to decrypt")
 	}
 
 	var dekSignature bls.KyberG2
-	if err := dekSignature.UnmarshalBinary(clientResult.Signature()); err != nil {
+	if err := dekSignature.UnmarshalBinary(roundSignature); err != nil {
 		return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
 	}
 
@@ -177,7 +156,7 @@ func DecryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, round
 		W: cipherDEK.cipherW,
 	}
 
-	plainDEK, err = ibe.Decrypt(suite, publicKey, &dekSignature, &dek)
+	plainDEK, err = ibe.Decrypt(network.PairingSuite(), publicKey, &dekSignature, &dek)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
@@ -195,15 +174,12 @@ func DecryptData(plainDEK []byte, cipherData []byte) (plainData []byte, err erro
 	return plainData, nil
 }
 
-// =============================================================================
-
-// retrievePairingSuite returns the pairing suite to use.
-func retrievePairingSuite() (pairing.Suite, error) {
-	return bls.NewBLS12381Suite(), nil
-}
-
-// calculateRound will generate the round information based on the specified duration.
-func calculateRound(duration time.Duration, client client.Client) (roundIDHash []byte, roundID uint64, err error) {
+// CalculateRound will generate the round information based on the specified duration.
+func CalculateRound(ctx context.Context, duration time.Duration, network Network) (roundID uint64, roundSignature []byte, err error) {
+	client, err := network.Client(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("client: %w", err)
+	}
 
 	// We need to get the future round number based on the duration. The following
 	// call will do the required calculations based on the network `period` property
@@ -213,8 +189,8 @@ func calculateRound(duration time.Duration, client client.Client) (roundIDHash [
 
 	h := sha256.New()
 	if _, err := h.Write(chain.RoundToBytes(roundID)); err != nil {
-		return nil, 0, fmt.Errorf("sha256 write: %w", err)
+		return 0, nil, fmt.Errorf("sha256 write: %w", err)
 	}
 
-	return h.Sum(nil), roundID, nil
+	return roundID, h.Sum(nil), nil
 }
