@@ -19,6 +19,8 @@ import (
 	"github.com/drand/kyber/pairing"
 )
 
+const ErrTooEarly = "too early to decrypt"
+
 // Network represents a network that is used to encrypt and decrypt a DEK
 // (Data Encryption Key) for use in encrypting and decrypting data.
 type Network interface {
@@ -137,7 +139,7 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, network Network, 
 func decryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
 	_, roundSignature, err := network.RoundByNumber(ctx, roundNumber)
 	if err != nil {
-		return nil, errors.New("too early to decrypt")
+		return nil, errors.New(ErrTooEarly)
 	}
 
 	var dekSignature bls.KyberG2
