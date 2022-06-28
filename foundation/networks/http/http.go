@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/drand/drand/client"
@@ -90,6 +91,7 @@ func (n *HTTP) PublicKey(ctx context.Context) (kyber.Point, error) {
 }
 
 // RoundByNumber returns the round id and signature for the specified round number.
+// If the it does not exist, we generate the signature.
 func (n *HTTP) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, []byte, error) {
 	client, err := n.Client(ctx)
 	if err != nil {
@@ -98,6 +100,16 @@ func (n *HTTP) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, [
 
 	result, err := client.Get(ctx, roundNumber)
 	if err != nil {
+
+		// If the number does not exist, we still need have to generate the signature.
+		if strings.Contains(err.Error(), "EOF") {
+			signature, err := drnd.CalculateRoundByNumber(roundNumber)
+			if err != nil {
+				return 0, nil, fmt.Errorf("round by number: %w", err)
+			}
+			return roundNumber, signature, nil
+		}
+
 		return 0, nil, fmt.Errorf("client get round: %w", err)
 	}
 
@@ -106,7 +118,7 @@ func (n *HTTP) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, [
 
 // RoundByDuration returns the round id and signature for the specified duration.
 func (n *HTTP) RoundByDuration(ctx context.Context, duration time.Duration) (uint64, []byte, error) {
-	roundID, roundSignature, err := drnd.CalculateRound(ctx, duration, n)
+	roundID, roundSignature, err := drnd.CalculateRoundByDuration(ctx, duration, n)
 	if err != nil {
 		return 0, nil, fmt.Errorf("calculate future round: %w", err)
 	}

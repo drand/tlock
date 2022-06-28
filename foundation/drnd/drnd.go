@@ -137,9 +137,22 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, network Network, 
 // decryptDEK attempts to decrypt an encrypted DEK against the provided network
 // for the specified round.
 func decryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
+
+	// Check if trying to decrypt data for a round in the future.
+	client, err := network.Client(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("network client: %w", err)
+	}
+
+	latestRound := client.RoundAt(time.Now())
+
+	if roundNumber > latestRound {
+		return nil, errors.New(ErrTooEarly)
+	}
+
 	_, roundSignature, err := network.RoundByNumber(ctx, roundNumber)
 	if err != nil {
-		return nil, errors.New(ErrTooEarly)
+		return nil, fmt.Errorf("round by number: %w", err)
 	}
 
 	var dekSignature bls.KyberG2
@@ -173,8 +186,9 @@ func decryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, round
 
 // =============================================================================
 
-// CalculateRound will generate the round information based on the specified duration.
-func CalculateRound(ctx context.Context, duration time.Duration, network Network) (roundID uint64, roundSignature []byte, err error) {
+// CalculateRoundByDuration will generate the round information based on the
+// specified duration.
+func CalculateRoundByDuration(ctx context.Context, duration time.Duration, network Network) (roundID uint64, roundSignature []byte, err error) {
 	client, err := network.Client(ctx)
 	if err != nil {
 		return 0, nil, fmt.Errorf("client: %w", err)
@@ -192,4 +206,15 @@ func CalculateRound(ctx context.Context, duration time.Duration, network Network
 	}
 
 	return roundID, h.Sum(nil), nil
+}
+
+// CalculateRoundByNumber will generate the round signature based on the
+// specified round.
+func CalculateRoundByNumber(round uint64) ([]byte, error) {
+	h := sha256.New()
+	if _, err := h.Write(chain.RoundToBytes(round)); err != nil {
+		return nil, fmt.Errorf("sha256 write: %w", err)
+	}
+
+	return h.Sum(nil), nil
 }
