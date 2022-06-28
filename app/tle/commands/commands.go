@@ -16,6 +16,24 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) erro
 	var aead aead.AEAD
 	network := http.New(flags.Network, flags.Chain)
 
+	if flags.Round != 0 {
+
+		client, err := network.Client(ctx)
+		if err != nil {
+			return fmt.Errorf("network client: %w", err)
+		}
+
+		// This will return the latest number for now.
+		lastestRound := client.RoundAt(time.Now())
+
+		// We have to make sure this round number is for the future.
+		if flags.Round < lastestRound {
+			return fmt.Errorf("round %d is not valid anymore", flags.Round)
+		}
+
+		return drnd.EncryptWithRound(ctx, out, in, network, aead, flags.Round, flags.Armor)
+	}
+
 	if flags.Duration != "" {
 		duration, err := time.ParseDuration(flags.Duration)
 		if err != nil {
@@ -25,7 +43,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) erro
 		return drnd.EncryptWithDuration(ctx, out, in, network, aead, duration, flags.Armor)
 	}
 
-	return drnd.EncryptWithRound(ctx, out, in, network, aead, flags.Round, flags.Armor)
+	return nil
 }
 
 // Decrypt performs the decryption operation.
