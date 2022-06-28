@@ -121,7 +121,7 @@ func validateFlags(f Flags) error {
 		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")
 		}
-		if f.Duration != "" && f.Round != 0 {
+		if f.Duration != defaultDuration && f.Round != 0 {
 			return fmt.Errorf("-D/--duration can't be used with -r/--round")
 		}
 		if f.Duration == "" && f.Round == 0 {

@@ -17,7 +17,6 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) erro
 	network := http.New(flags.Network, flags.Chain)
 
 	if flags.Round != 0 {
-
 		client, err := network.Client(ctx)
 		if err != nil {
 			return fmt.Errorf("network client: %w", err)
