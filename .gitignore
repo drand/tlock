@@ -1,11 +1,6 @@
 # Mac files
 .DS*
 
-encryptedFile
-decryptedFile
-encryptedArmor.pem
-decryptedArmor.pem
-
 # Binaries for programs and plugins
 *.exe
 *.exe~
