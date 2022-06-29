@@ -1,4 +1,5 @@
-package tlock
+// Package base represents the default format for serializing data.
+package base
 
 import (
 	"bufio"
@@ -9,33 +10,14 @@ import (
 	"strconv"
 
 	"github.com/drand/kyber/encrypt/ibe"
+	"github.com/drand/tlock"
 )
 
-// metadata represents the metadata maintained in the encrypted output.
-type metadata struct {
-	roundID   uint64
-	chainHash string
-}
+// Encoder represents the base serializer for the time lock cli.
+type Encoder struct{}
 
-// cipherDEK represents the different parts of the encrypted Data Encryption
-// Key after encryption.
-type cipherDEK struct {
-	kyberPoint []byte
-	cipherV    []byte
-	cipherW    []byte
-}
-
-// file represents the different parts of the encrypted source.
-type file struct {
-	metadata   metadata
-	cipherDEK  cipherDEK
-	cipherData []byte
-}
-
-// =============================================================================
-
-// write the meta data, cipher DEK and cipher text to the output destination.
-func write(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md metadata, armor bool) (err error) {
+// Encode writes the meta data, cipher DEK and cipher text to the output destination.
+func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md tlock.Metadata, armor bool) (err error) {
 	var b bytes.Buffer
 	ww := bufio.NewWriter(&b)
 
@@ -61,8 +43,8 @@ func write(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md metad
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
-	fmt.Fprintln(ww, strconv.Itoa(int(md.roundID)))
-	fmt.Fprintln(ww, md.chainHash)
+	fmt.Fprintln(ww, strconv.Itoa(int(md.RoundID)))
+	fmt.Fprintln(ww, md.ChainHash)
 
 	ww.Write(kyberPoint)
 	ww.Write(cipherDEK.V)
@@ -72,18 +54,18 @@ func write(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md metad
 	return nil
 }
 
-// read the encrypted data into its different parts.
-func read(in io.Reader) (file, error) {
+// Decode reads the encrypted data into its different parts.
+func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
 	data, err := io.ReadAll(in)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to read the data from source: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read the data from source: %w", err)
 	}
 
 	rr := bufio.NewReader(bytes.NewReader(data))
 	if string(data[:5]) == "-----" {
 		var block *pem.Block
 		if block, _ = pem.Decode(data); block == nil {
-			return file{}, fmt.Errorf("decoding PEM: %s", "block is nil")
+			return tlock.CipherInfo{}, fmt.Errorf("decoding PEM: %s", "block is nil")
 		}
 
 		rr = bufio.NewReader(bytes.NewReader(block.Bytes))
@@ -91,54 +73,56 @@ func read(in io.Reader) (file, error) {
 
 	roundIDStr, err := readHeaderLine(rr)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to read roundID: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read roundID: %w", err)
 	}
 
 	roundID, err := strconv.Atoi(roundIDStr)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to convert round: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to convert round: %w", err)
 	}
 
 	chainHash, err := readHeaderLine(rr)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to read chain hash: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
 	}
 
 	kyberPoint, err := readPayloadBytes(rr, 48)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to read kyber point: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read kyber point: %w", err)
 	}
 
 	cipherV, err := readPayloadBytes(rr, 32)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to read cipher v: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read cipher v: %w", err)
 	}
 
 	cipherW, err := readPayloadBytes(rr, 32)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to read cipher w: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
 	}
 
 	cipherData, err := readPayloadBytes(rr, 0)
 	if err != nil {
-		return file{}, fmt.Errorf("failed to read cipher text w: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read cipher text w: %w", err)
 	}
 
-	f := file{
-		metadata: metadata{
-			roundID:   uint64(roundID),
-			chainHash: chainHash,
+	ci := tlock.CipherInfo{
+		Metadata: tlock.Metadata{
+			RoundID:   uint64(roundID),
+			ChainHash: chainHash,
 		},
-		cipherDEK: cipherDEK{
-			kyberPoint: kyberPoint,
-			cipherV:    cipherV,
-			cipherW:    cipherW,
+		CipherDEK: tlock.CipherDEK{
+			KyberPoint: kyberPoint,
+			CipherV:    cipherV,
+			CipherW:    cipherW,
 		},
-		cipherData: cipherData,
+		CipherData: cipherData,
 	}
 
-	return f, nil
+	return ci, nil
 }
+
+// =============================================================================
 
 // readPayloadBytes reads the section of the payload.
 func readPayloadBytes(rr *bufio.Reader, len int) ([]byte, error) {

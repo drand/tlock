@@ -9,7 +9,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/drand/tlock"
 	"github.com/drand/tlock/cmd/commands"
+	"github.com/drand/tlock/encoders/base"
+	"github.com/drand/tlock/encrypters/aead"
+	"github.com/drand/tlock/networks/http"
 )
 
 /*
@@ -61,10 +65,14 @@ func run(log *log.Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	var encoder base.Encoder
+	var encrypter aead.AEAD
+	network := http.New(flags.Network, flags.Chain)
+
 	switch {
 	case flags.Decrypt:
-		return commands.Decrypt(ctx, flags, out, in)
+		return tlock.Decrypt(ctx, out, in, encoder, network, encrypter)
 	default:
-		return commands.Encrypt(ctx, flags, out, in)
+		return commands.Encrypt(ctx, flags, out, in, encoder, network, encrypter)
 	}
 }

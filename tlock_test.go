@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/drand/tlock"
+	"github.com/drand/tlock/encoders/base"
 	"github.com/drand/tlock/encrypters/aead"
 	"github.com/drand/tlock/networks/http"
 )
@@ -31,30 +32,40 @@ const (
 )
 
 func Test_EarlyDecryptionWithDuration(t *testing.T) {
+	var encoder base.Encoder
+	var encrypter aead.AEAD
 	network := http.New(testnetHost, testnetChainHash)
+	ctx := context.Background()
 
-	// read the data to be encrypted.
-	reader, err := os.Open("test_artifacts/data.txt")
+	// =========================================================================
+	// Encrypt
+
+	// Read the plaintext data to be encrypted.
+	in, err := os.Open("test_artifacts/data.txt")
 	if err != nil {
 		t.Fatalf("reader error %s", err)
 	}
-	defer reader.Close()
+	defer in.Close()
 
-	var aead aead.AEAD
+	// Write the encoded information to this buffer.
+	var cipherData bytes.Buffer
 
 	// Enough duration to check for an non-existing beacon.
 	duration := 10 * time.Second
 
-	var encryptedBuffer bytes.Buffer
-	err = tlock.EncryptWithDuration(context.Background(), &encryptedBuffer, reader, network, aead, duration, false)
+	err = tlock.EncryptWithDuration(ctx, &cipherData, in, encoder, network, encrypter, duration, false)
 	if err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
 
-	var decryptedBuffer bytes.Buffer
+	// =========================================================================
+	// Decrypt
+
+	// Write the decoded information to this buffer.
+	var plainData bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	err = tlock.Decrypt(ctx, &plainData, &cipherData, encoder, network, encrypter)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
@@ -65,36 +76,43 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 }
 
 func Test_EarlyDecryptionWithRound(t *testing.T) {
+	var encoder base.Encoder
+	var encrypter aead.AEAD
 	network := http.New(testnetHost, testnetChainHash)
+	ctx := context.Background()
 
-	// read the data to be encrypted.
-	reader, err := os.Open("test_artifacts/data.txt")
+	// =========================================================================
+	// Encrypt
+
+	// Read the plaintext data to be encrypted.
+	in, err := os.Open("test_artifacts/data.txt")
 	if err != nil {
 		t.Fatalf("reader error %s", err)
 	}
-	defer reader.Close()
+	defer in.Close()
 
-	var aead aead.AEAD
-
-	client, err := network.Client(context.Background())
+	client, err := network.Client(ctx)
 	if err != nil {
-		t.Fatalf("client error :%s", err)
+		t.Fatalf("client: %s", err)
 	}
-
 	futureRound := client.RoundAt(time.Now().Add(1 * time.Minute))
 
-	var encryptedBuffer bytes.Buffer
-	err = tlock.EncryptWithRound(context.Background(), &encryptedBuffer, reader, network, aead, futureRound, false)
+	// Write the encoded information to this buffer.
+	var cipherData bytes.Buffer
+
+	err = tlock.EncryptWithRound(context.Background(), &cipherData, in, encoder, network, encrypter, futureRound, false)
 	if err != nil {
 		t.Fatalf("encrypt with round error %s", err)
 	}
 
-	//==========================================================================
-	// The encrypted buffer was written. We need to decrypt to make sure it worked.
-	var decryptedBuffer bytes.Buffer
+	// =========================================================================
+	// Decrypt
+
+	// Write the decoded information to this buffer.
+	var plainData bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	err = tlock.Decrypt(ctx, &plainData, &cipherData, encoder, network, encrypter)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
@@ -105,81 +123,102 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 }
 
 func Test_EncryptionWithDuration(t *testing.T) {
-	network := http.New(testnetHost, testnetChainHash)
+	if testing.Short() {
+		t.Skip("skipping testing in short mode")
+	}
 
-	// read the data to be encrypted.
-	reader, err := os.Open("test_artifacts/data.txt")
+	var encoder base.Encoder
+	var encrypter aead.AEAD
+	network := http.New(testnetHost, testnetChainHash)
+	ctx := context.Background()
+
+	// =========================================================================
+	// Encrypt
+
+	// Read the plaintext data to be encrypted.
+	in, err := os.Open("test_artifacts/data.txt")
 	if err != nil {
 		t.Fatalf("reader error %s", err)
 	}
-	defer reader.Close()
+	defer in.Close()
 
-	var aead aead.AEAD
+	// Write the encoded information to this buffer.
+	var cipherData bytes.Buffer
 
-	// This is the testnetwork period.
-	duration := 3 * time.Second
+	// Enough duration to check for an non-existing beacon.
+	duration := 4 * time.Second
 
-	var encryptedBuffer bytes.Buffer
-	err = tlock.EncryptWithDuration(context.Background(), &encryptedBuffer, reader, network, aead, duration, false)
+	err = tlock.EncryptWithDuration(ctx, &cipherData, in, encoder, network, encrypter, duration, false)
 	if err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
 
-	//==========================================================================
-	// The encrypted buffer was written. We need to decrypt to make sure it worked.
-	var decryptedBuffer bytes.Buffer
+	// =========================================================================
+	// Decrypt
 
-	// Wait for the future beacon to exist.
-	time.Sleep(4 * time.Second)
+	time.Sleep(5 * time.Second)
 
-	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	// Write the decoded information to this buffer.
+	var plainData bytes.Buffer
+
+	err = tlock.Decrypt(ctx, &plainData, &cipherData, encoder, network, encrypter)
 	if err != nil {
-		t.Fatalf("decrypt error %s", err)
+		t.Fatalf("unexpected error %s", err)
 	}
 
-	if !bytes.Equal(decryptedBuffer.Bytes(), dataFile) {
-		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(decryptedBuffer.Bytes()))
+	if !bytes.Equal(plainData.Bytes(), dataFile) {
+		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(plainData.Bytes()))
 	}
 }
 
 func Test_EncryptionWithRound(t *testing.T) {
-	network := http.New(testnetHost, testnetChainHash)
+	if testing.Short() {
+		t.Skip("skipping testing in short mode")
+	}
 
-	// read the data to be encrypted.
-	reader, err := os.Open("test_artifacts/data.txt")
+	var encoder base.Encoder
+	var encrypter aead.AEAD
+	network := http.New(testnetHost, testnetChainHash)
+	ctx := context.Background()
+
+	// =========================================================================
+	// Encrypt
+
+	// Read the plaintext data to be encrypted.
+	in, err := os.Open("test_artifacts/data.txt")
 	if err != nil {
 		t.Fatalf("reader error %s", err)
 	}
-	defer reader.Close()
+	defer in.Close()
 
-	var aead aead.AEAD
+	// Write the encoded information to this buffer.
+	var cipherData bytes.Buffer
 
 	client, err := network.Client(context.Background())
 	if err != nil {
 		t.Fatalf("client error :%s", err)
 	}
-
 	futureRound := client.RoundAt(time.Now().Add(6 * time.Second))
 
-	var encryptedBuffer bytes.Buffer
-	err = tlock.EncryptWithRound(context.Background(), &encryptedBuffer, reader, network, aead, futureRound, false)
+	err = tlock.EncryptWithRound(ctx, &cipherData, in, encoder, network, encrypter, futureRound, false)
 	if err != nil {
-		t.Fatalf("encrypt with round error %s", err)
+		t.Fatalf("encrypt with duration error %s", err)
 	}
 
-	//==========================================================================
-	// The encrypted buffer was written. We need to decrypt to make sure it worked.
-	var decryptedBuffer bytes.Buffer
+	// =========================================================================
+	// Decrypt
+
+	var plainData bytes.Buffer
 
 	// Wait for the future beacon to exist.
 	time.Sleep(10 * time.Second)
 
-	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	err = tlock.Decrypt(ctx, &plainData, &cipherData, encoder, network, encrypter)
 	if err != nil {
-		t.Fatalf("decrypt error: %s", err)
+		t.Fatalf("unexpected error %s", err)
 	}
 
-	if !bytes.Equal(decryptedBuffer.Bytes(), dataFile) {
-		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(decryptedBuffer.Bytes()))
+	if !bytes.Equal(plainData.Bytes(), dataFile) {
+		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(plainData.Bytes()))
 	}
 }

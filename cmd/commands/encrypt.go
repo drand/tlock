@@ -9,15 +9,10 @@ import (
 	"time"
 
 	"github.com/drand/tlock"
-	"github.com/drand/tlock/encrypters/aead"
-	"github.com/drand/tlock/networks/http"
 )
 
 // Encrypt performs the encryption operation.
-func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) error {
-	var aead aead.AEAD
-	network := http.New(flags.Network, flags.Chain)
-
+func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, encoder tlock.Encoder, network tlock.Network, encrypter tlock.Encrypter) error {
 	if flags.Round != 0 {
 		client, err := network.Client(ctx)
 		if err != nil {
@@ -32,7 +27,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) erro
 			return fmt.Errorf("round %d is not valid anymore", flags.Round)
 		}
 
-		return tlock.EncryptWithRound(ctx, out, in, network, aead, flags.Round, flags.Armor)
+		return tlock.EncryptWithRound(ctx, out, in, encoder, network, encrypter, flags.Round, flags.Armor)
 	}
 
 	if flags.Duration != "" {
@@ -40,8 +35,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) erro
 		if err != nil {
 			return fmt.Errorf("parse duration: %w", err)
 		}
-		fmt.Println("duration", duration)
-		return tlock.EncryptWithDuration(ctx, out, in, network, aead, duration, flags.Armor)
+		return tlock.EncryptWithDuration(ctx, out, in, encoder, network, encrypter, duration, flags.Armor)
 	}
 
 	return nil
@@ -98,16 +92,4 @@ func parseDuration(duration string) (time.Duration, error) {
 	}
 
 	return d, nil
-}
-
-// Decrypt performs the decryption operation.
-func Decrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader) error {
-	var aead aead.AEAD
-	network := http.New(flags.Network, flags.Chain)
-
-	if err := tlock.Decrypt(ctx, out, in, network, aead); err != nil {
-		return err
-	}
-
-	return nil
 }
