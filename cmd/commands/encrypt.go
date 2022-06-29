@@ -41,50 +41,53 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 	return nil
 }
 
-// calculateDurationInHours parses the number and return the duration calculation
-// in hours.
-func calculateDurationInHours(number string, calc int) (time.Duration, error) {
-	i, err := strconv.Atoi(number)
-	if err != nil {
-		return time.Second, fmt.Errorf("calculate duration: %w", err)
-	}
-
-	return time.Duration(i*calc) * time.Hour, nil
-}
-
-// parseDuration tries to parse the duration, also considering days, years and
-// months.
+// parseDuration tries to parse the duration, also considering days, months and
+// years.
 func parseDuration(duration string) (time.Duration, error) {
 	d, err := time.ParseDuration(duration)
 	if err == nil {
 		return d, nil
 	}
 
-	// We only accept d, M or y units.
+	// We only accept d, M or y units. M has to be capitalised to avoid conflict
+	// with minutes.
 	if !strings.ContainsAny(duration, "dMy") {
 		return time.Second, fmt.Errorf("unknown unit")
 	}
 
+	currentTime := time.Now()
+
 	// Check if there are days to parse.
 	number, _, found := strings.Cut(duration, "d")
 	if found {
-		return calculateDurationInHours(number, 24)
+		i, err := strconv.Atoi(number)
+		if err != nil {
+			return time.Second, fmt.Errorf("parse day duration: %w", err)
+		}
+		diff := currentTime.AddDate(0, 0, i).Sub(currentTime)
+		return diff, nil
 	}
 
-	// Months
-	// Considering a month with 30 days
-	// time.Now().AddDate(0, 2, 0)
+	// Check if there are months to parse.
 	number, _, found = strings.Cut(duration, "M")
 	if found {
-		return calculateDurationInHours(number, 24*30)
-
+		i, err := strconv.Atoi(number)
+		if err != nil {
+			return time.Second, fmt.Errorf("parse month duration: %w", err)
+		}
+		diff := currentTime.AddDate(0, i, 0).Sub(currentTime)
+		return diff, nil
 	}
 
-	// Years
-	// Considering a year with 365 days
+	// Check if there are years to parse.
 	number, _, found = strings.Cut(duration, "y")
 	if found {
-		return calculateDurationInHours(number, 24*365)
+		i, err := strconv.Atoi(number)
+		if err != nil {
+			return time.Second, fmt.Errorf("parse year duration: %w", err)
+		}
+		diff := currentTime.AddDate(i, 0, 0).Sub(currentTime)
+		return diff, nil
 	}
 
 	return time.Second, fmt.Errorf("parse duration: %w", err)
