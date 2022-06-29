@@ -1,4 +1,4 @@
-package drnd
+package tlock
 
 import (
 	"bufio"

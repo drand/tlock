@@ -1,4 +1,4 @@
-package drnd_test
+package tlock_test
 
 import (
 	"bytes"
@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drand/tlock/foundation/drnd"
-	"github.com/drand/tlock/foundation/encrypters/aead"
-	"github.com/drand/tlock/foundation/networks/http"
+	"github.com/drand/tlock"
+	"github.com/drand/tlock/encrypters/aead"
+	"github.com/drand/tlock/networks/http"
 )
 
 var (
@@ -46,7 +46,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	duration := 10 * time.Second
 
 	var encryptedBuffer bytes.Buffer
-	err = drnd.EncryptWithDuration(context.Background(), &encryptedBuffer, reader, network, aead, duration, false)
+	err = tlock.EncryptWithDuration(context.Background(), &encryptedBuffer, reader, network, aead, duration, false)
 	if err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
@@ -54,13 +54,13 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	var decryptedBuffer bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = drnd.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
 
-	if !strings.Contains(err.Error(), drnd.ErrTooEarly) {
-		t.Fatalf("expecting decrypt error to contain '%s'; got %s", drnd.ErrTooEarly, err)
+	if !strings.Contains(err.Error(), tlock.ErrTooEarly) {
+		t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
 	}
 }
 
@@ -84,7 +84,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	futureRound := client.RoundAt(time.Now().Add(1 * time.Minute))
 
 	var encryptedBuffer bytes.Buffer
-	err = drnd.EncryptWithRound(context.Background(), &encryptedBuffer, reader, network, aead, futureRound, false)
+	err = tlock.EncryptWithRound(context.Background(), &encryptedBuffer, reader, network, aead, futureRound, false)
 	if err != nil {
 		t.Fatalf("encrypt with round error %s", err)
 	}
@@ -94,13 +94,13 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	var decryptedBuffer bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = drnd.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
 
-	if !strings.Contains(err.Error(), drnd.ErrTooEarly) {
-		t.Fatalf("expecting decrypt error to contain '%s'; got %s", drnd.ErrTooEarly, err)
+	if !strings.Contains(err.Error(), tlock.ErrTooEarly) {
+		t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
 	}
 }
 
@@ -120,7 +120,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	duration := 3 * time.Second
 
 	var encryptedBuffer bytes.Buffer
-	err = drnd.EncryptWithDuration(context.Background(), &encryptedBuffer, reader, network, aead, duration, false)
+	err = tlock.EncryptWithDuration(context.Background(), &encryptedBuffer, reader, network, aead, duration, false)
 	if err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
@@ -132,7 +132,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	// Wait for the future beacon to exist.
 	time.Sleep(4 * time.Second)
 
-	err = drnd.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
 	if err != nil {
 		t.Fatalf("decrypt error %s", err)
 	}
@@ -162,7 +162,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	futureRound := client.RoundAt(time.Now().Add(6 * time.Second))
 
 	var encryptedBuffer bytes.Buffer
-	err = drnd.EncryptWithRound(context.Background(), &encryptedBuffer, reader, network, aead, futureRound, false)
+	err = tlock.EncryptWithRound(context.Background(), &encryptedBuffer, reader, network, aead, futureRound, false)
 	if err != nil {
 		t.Fatalf("encrypt with round error %s", err)
 	}
@@ -174,7 +174,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Wait for the future beacon to exist.
 	time.Sleep(10 * time.Second)
 
-	err = drnd.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
+	err = tlock.Decrypt(context.Background(), &decryptedBuffer, &encryptedBuffer, network, aead)
 	if err != nil {
 		t.Fatalf("decrypt error: %s", err)
 	}

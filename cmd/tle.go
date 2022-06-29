@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/drand/tlock/app/tle/commands"
+	"github.com/drand/tlock/cmd/commands"
 )
 
 /*

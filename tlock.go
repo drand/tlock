@@ -1,17 +1,15 @@
-// Package drnd provides an API for encrypting and decrypting data using
+// Package tlock provides an API for encrypting and decrypting data using
 // drand time lock encryption.
-package drnd
+package tlock
 
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
-	"github.com/drand/drand/chain"
 	"github.com/drand/drand/client"
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
@@ -182,39 +180,4 @@ func decryptDEK(ctx context.Context, cipherDEK cipherDEK, network Network, round
 	}
 
 	return plainDEK, nil
-}
-
-// =============================================================================
-
-// CalculateRoundByDuration will generate the round information based on the
-// specified duration.
-func CalculateRoundByDuration(ctx context.Context, duration time.Duration, network Network) (roundID uint64, roundSignature []byte, err error) {
-	client, err := network.Client(ctx)
-	if err != nil {
-		return 0, nil, fmt.Errorf("client: %w", err)
-	}
-
-	// We need to get the future round number based on the duration. The following
-	// call will do the required calculations based on the network `period` property
-	// and return a uint64 representing the round number in the future. This round
-	// number is used to encrypt the data and will also be used by the decrypt function.
-	roundID = client.RoundAt(time.Now().Add(duration))
-
-	h := sha256.New()
-	if _, err := h.Write(chain.RoundToBytes(roundID)); err != nil {
-		return 0, nil, fmt.Errorf("sha256 write: %w", err)
-	}
-
-	return roundID, h.Sum(nil), nil
-}
-
-// CalculateRoundByNumber will generate the round signature based on the
-// specified round.
-func CalculateRoundByNumber(round uint64) ([]byte, error) {
-	h := sha256.New()
-	if _, err := h.Write(chain.RoundToBytes(round)); err != nil {
-		return nil, fmt.Errorf("sha256 write: %w", err)
-	}
-
-	return h.Sum(nil), nil
 }

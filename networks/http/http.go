@@ -4,6 +4,7 @@ package http
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -11,12 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/drand/drand/chain"
 	"github.com/drand/drand/client"
 	dhttp "github.com/drand/drand/client/http"
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/pairing"
-	"github.com/drand/tlock/foundation/drnd"
 )
 
 // HTTP provides network and chain information.
@@ -103,7 +104,7 @@ func (n *HTTP) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, [
 
 		// If the number does not exist, we still need have to generate the signature.
 		if strings.Contains(err.Error(), "EOF") {
-			signature, err := drnd.CalculateRoundByNumber(roundNumber)
+			signature, err := calculateRoundByNumber(roundNumber)
 			if err != nil {
 				return 0, nil, fmt.Errorf("round by number: %w", err)
 			}
@@ -118,7 +119,7 @@ func (n *HTTP) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, [
 
 // RoundByDuration returns the round id and signature for the specified duration.
 func (n *HTTP) RoundByDuration(ctx context.Context, duration time.Duration) (uint64, []byte, error) {
-	roundID, roundSignature, err := drnd.CalculateRoundByDuration(ctx, duration, n)
+	roundID, roundSignature, err := calculateRoundByDuration(ctx, duration, n)
 	if err != nil {
 		return 0, nil, fmt.Errorf("calculate future round: %w", err)
 	}
@@ -127,6 +128,39 @@ func (n *HTTP) RoundByDuration(ctx context.Context, duration time.Duration) (uin
 }
 
 // =============================================================================
+
+// calculateRoundByDuration will generate the round information based on the
+// specified duration.
+func calculateRoundByDuration(ctx context.Context, duration time.Duration, http *HTTP) (roundID uint64, roundSignature []byte, err error) {
+	client, err := http.Client(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("client: %w", err)
+	}
+
+	// We need to get the future round number based on the duration. The following
+	// call will do the required calculations based on the network `period` property
+	// and return a uint64 representing the round number in the future. This round
+	// number is used to encrypt the data and will also be used by the decrypt function.
+	roundID = client.RoundAt(time.Now().Add(duration))
+
+	h := sha256.New()
+	if _, err := h.Write(chain.RoundToBytes(roundID)); err != nil {
+		return 0, nil, fmt.Errorf("sha256 write: %w", err)
+	}
+
+	return roundID, h.Sum(nil), nil
+}
+
+// calculateRoundByNumber will generate the round signature based on the
+// specified round.
+func calculateRoundByNumber(round uint64) ([]byte, error) {
+	h := sha256.New()
+	if _, err := h.Write(chain.RoundToBytes(round)); err != nil {
+		return nil, fmt.Errorf("sha256 write: %w", err)
+	}
+
+	return h.Sum(nil), nil
+}
 
 // transport sets reasonable defaults for the connection.
 func transport() *http.Transport {
