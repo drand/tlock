@@ -53,43 +53,39 @@ func calculateDurationInHours(number string, calc int) (time.Duration, error) {
 }
 
 // parseDuration tries to parse the duration, also considering days, years and
-// months
+// months.
 func parseDuration(duration string) (time.Duration, error) {
 	d, err := time.ParseDuration(duration)
-	if err != nil {
-
-		// Check for a unit convertion error and try to parse.
-		if strings.Contains(err.Error(), "unknown unit") {
-
-			// We only accept d, m or y units.
-			if !strings.ContainsAny(duration, "dMy") {
-				return time.Second, fmt.Errorf("unknown unit")
-			}
-
-			// Days
-			number, _, found := strings.Cut(duration, "d")
-			if found {
-				return calculateDurationInHours(number, 24)
-			}
-
-			// Months
-			// Considering a month with 30 days
-			number, _, found = strings.Cut(duration, "M")
-			if found {
-				return calculateDurationInHours(number, 24*30)
-
-			}
-
-			// Years
-			// Considering a year with 365 days
-			number, _, found = strings.Cut(duration, "y")
-			if found {
-				return calculateDurationInHours(number, 24*365)
-			}
-		}
-
-		return time.Second, fmt.Errorf("parse duration: %w", err)
+	if err == nil {
+		return d, nil
 	}
 
-	return d, nil
+	// We only accept d, M or y units.
+	if !strings.ContainsAny(duration, "dMy") {
+		return time.Second, fmt.Errorf("unknown unit")
+	}
+
+	// Check if there are days to parse.
+	number, _, found := strings.Cut(duration, "d")
+	if found {
+		return calculateDurationInHours(number, 24)
+	}
+
+	// Months
+	// Considering a month with 30 days
+	// time.Now().AddDate(0, 2, 0)
+	number, _, found = strings.Cut(duration, "M")
+	if found {
+		return calculateDurationInHours(number, 24*30)
+
+	}
+
+	// Years
+	// Considering a year with 365 days
+	number, _, found = strings.Cut(duration, "y")
+	if found {
+		return calculateDurationInHours(number, 24*365)
+	}
+
+	return time.Second, fmt.Errorf("parse duration: %w", err)
 }
