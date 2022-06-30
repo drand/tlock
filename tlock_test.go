@@ -16,12 +16,6 @@ import (
 )
 
 var (
-	//go:embed test_artifacts/decryptedFile.bin
-	decryptedFile []byte
-
-	//go:embed test_artifacts/encryptedFile.bin
-	encryptedFile []byte
-
 	//go:embed test_artifacts/data.txt
 	dataFile []byte
 )

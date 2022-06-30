@@ -38,7 +38,7 @@ func PrintUsage(log *log.Logger) {
 
 // =============================================================================
 
-// flags represent the values from the command line.
+// Flags represent the values from the command line.
 type Flags struct {
 	Encrypt  bool
 	Decrypt  bool

@@ -1,3 +1,4 @@
+// Package commands implements the Encrypt function for the CLI.
 package commands
 
 import (
