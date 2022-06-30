@@ -43,7 +43,7 @@ func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherData []byt
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
-	fmt.Fprintln(ww, strconv.Itoa(int(md.RoundID)))
+	fmt.Fprintln(ww, strconv.Itoa(int(md.RoundNumber)))
 	fmt.Fprintln(ww, md.ChainHash)
 
 	ww.Write(kyberPoint)
@@ -71,12 +71,12 @@ func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
 		rr = bufio.NewReader(bytes.NewReader(block.Bytes))
 	}
 
-	roundIDStr, err := readHeaderLine(rr)
+	roundNumberStr, err := readHeaderLine(rr)
 	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read roundID: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("failed to read round number: %w", err)
 	}
 
-	roundID, err := strconv.Atoi(roundIDStr)
+	roundNumber, err := strconv.Atoi(roundNumberStr)
 	if err != nil {
 		return tlock.CipherInfo{}, fmt.Errorf("failed to convert round: %w", err)
 	}
@@ -108,8 +108,8 @@ func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
 
 	ci := tlock.CipherInfo{
 		Metadata: tlock.Metadata{
-			RoundID:   uint64(roundID),
-			ChainHash: chainHash,
+			RoundNumber: uint64(roundNumber),
+			ChainHash:   chainHash,
 		},
 		CipherDEK: tlock.CipherDEK{
 			KyberPoint: kyberPoint,
