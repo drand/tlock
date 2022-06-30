@@ -18,6 +18,13 @@ jobs:
       with:
         go-version: 1.18
 
+    - name: Staticheck
+      run: |
+        wget -O staticcheck.tgz https://github.com/dominikh/go-tools/releases/download/2022.1/staticcheck_linux_amd64.tar.gz
+        sudo tar -xzf staticcheck.tgz
+        ./staticcheck/staticcheck --version
+        ./staticcheck/staticcheck -checks=all ./...
+
     - name: Build
       run: go build -v ./...
 
