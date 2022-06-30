@@ -20,18 +20,34 @@ const (
 
 // =============================================================================
 
-const usage = `USAGE:
+const usage = `
+Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
+	tle --decrypt [-o OUTPUT] [INPUT]
 
-OPTIONS:
-	-e, --encrypt Encrypt the input to the output. Default if omitted.
-	-d, --decrypt Decrypt the input to the output, using the required drand rounds.
-	-n, --network The drand API endpoint(s) to use. Default is http://pl-us.testnet.drand.sh/
-	-c, --chain The chain to use. Can use either beacon ID name or beacon hash. Default to the chain hash of the "unchained" network. Use beacon hash in order to ensure public key integrity.
-	-r, --round The specific round to use to encrypt the message. Cannot be used with --duration.
-	-D, --duration How long to wait before the msg can be decrypted. Default to "120d", i.e. 120 days. Cannot be used with --round.
-	-o, --output OUTPUT write the result to the file at path OUTPUT.
-	-a, --armor Encrypt to a PEM encoded format.`
+Options:
+	-e, --encrypt  Encrypt the input to the output. Default if omitted.
+	-d, --decrypt  Decrypt the input to the output.
+	-n, --network  The drand API endpoint to use.
+	-c, --chain    The chain to use. Can use either beacon ID name or beacon hash. Use beacon hash in order to ensure public key integrity.
+	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
+	-D, --duration How long to wait before the message can be decrypted.
+	-o, --output   Write the result to the file at path OUTPUT.
+	-a, --armor    Encrypt to a PEM encoded format.
+
+If the OUTPUT exists, it will be overwritten.
+
+NETWORK defaults to the Drand test network http://pl-us.testnet.drand.sh/.
+
+CHAIN defaults to the "unchained" hash in the default test network: 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
+
+When --duration is specified, it expects a value following Golang's type Duration and its units. It also accepts the units for day, month and year: d, M, y.
+
+Example:
+    $ ./tle -D 10d -o encrypted_file data_to_encrypt
+
+After the specified duration:
+    $ ./tle -d -o dencrypted_file.txt encrypted_file`
 
 // PrintUsage displays the usage information.
 func PrintUsage(log *log.Logger) {
