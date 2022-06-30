@@ -43,7 +43,7 @@ func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherData []byt
 		return fmt.Errorf("marshal binary: %w", err)
 	}
 
-	fmt.Fprintln(ww, strconv.Itoa(int(md.RoundNumber)))
+	fmt.Fprintln(ww, strconv.FormatInt(int64(md.RoundNumber), 10))
 	fmt.Fprintln(ww, md.ChainHash)
 
 	ww.Write(kyberPoint)
