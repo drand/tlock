@@ -1,4 +1,4 @@
-// Package base represents the default format for serializing data.
+// Package base implements the Encoder/Decoder interfaces for the tlock package.
 package base
 
 import (
@@ -13,11 +13,11 @@ import (
 	"github.com/drand/tlock"
 )
 
-// Encoder represents the base serializer for the time lock cli.
+// Encoder knows how to encode/decode cipher information.
 type Encoder struct{}
 
-// Encode writes the meta data, cipher DEK and cipher text to the output destination.
-func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md tlock.Metadata, armor bool) (err error) {
+// Encode writes the cipher metadata, DEK and data to the output destination.
+func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherData []byte, md tlock.Metadata, armor bool) (err error) {
 	var b bytes.Buffer
 	ww := bufio.NewWriter(&b)
 
@@ -49,12 +49,12 @@ func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byt
 	ww.Write(kyberPoint)
 	ww.Write(cipherDEK.V)
 	ww.Write(cipherDEK.W)
-	ww.Write(cipherText)
+	ww.Write(cipherData)
 
 	return nil
 }
 
-// Decode reads the encrypted data into its different parts.
+// Decode reads the cipher metadata, DEK and data from the input source.
 func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
 	data, err := io.ReadAll(in)
 	if err != nil {

@@ -16,13 +16,6 @@ import (
 	"github.com/drand/tlock/networks/http"
 )
 
-/*
-	- Write unit tests with test network.
-	- Write unit tests with some form of mocking for negative path.
-*/
-
-// =============================================================================
-
 func main() {
 	log := log.New(os.Stderr, "", 0)
 
@@ -62,12 +55,13 @@ func run(log *log.Logger) error {
 		out = f
 	}
 
+	// These represent the default encoder, encrypter, and network.
+	var encoder base.Encoder
+	var encrypter aead.Encrypter
+	network := http.NewNetwork(flags.Network, flags.Chain)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	var encoder base.Encoder
-	var encrypter aead.AEAD
-	network := http.New(flags.Network, flags.Chain)
 
 	switch {
 	case flags.Decrypt:

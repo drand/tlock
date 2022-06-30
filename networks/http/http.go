@@ -1,5 +1,4 @@
-// Package http implements the network interface for acessing a drand service
-// using HTTP.
+// Package http implements the Network interface for the tlock package.
 package http
 
 import (
@@ -20,39 +19,39 @@ import (
 	"github.com/drand/kyber/pairing"
 )
 
-// HTTP provides network and chain information.
-type HTTP struct {
+// Network represents the network support using the drand http client.
+type Network struct {
 	host      string
 	chainHash string
 	client    client.Client
 	publicKey kyber.Point
 }
 
-// New constructs an HTTP network for use.
-func New(host string, chainHash string) *HTTP {
-	return &HTTP{
+// NewNetwork constructs a network for use that will use the http client.
+func NewNetwork(host string, chainHash string) *Network {
+	return &Network{
 		host:      host,
 		chainHash: chainHash,
 	}
 }
 
 // Host returns the host network information.
-func (n *HTTP) Host() string {
+func (n *Network) Host() string {
 	return n.host
 }
 
 // ChainHash returns the chain hash for this network.
-func (n *HTTP) ChainHash() string {
+func (n *Network) ChainHash() string {
 	return n.chainHash
 }
 
 // PairingSuite returns the pairing suite to use.
-func (*HTTP) PairingSuite() pairing.Suite {
+func (*Network) PairingSuite() pairing.Suite {
 	return bls.NewBLS12381Suite()
 }
 
 // Client returns an HTTP client used to talk to the network.
-func (n *HTTP) Client(ctx context.Context) (client.Client, error) {
+func (n *Network) Client(ctx context.Context) (client.Client, error) {
 	if n.client != nil {
 		return n.client, nil
 	}
@@ -72,7 +71,7 @@ func (n *HTTP) Client(ctx context.Context) (client.Client, error) {
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.
-func (n *HTTP) PublicKey(ctx context.Context) (kyber.Point, error) {
+func (n *Network) PublicKey(ctx context.Context) (kyber.Point, error) {
 	if n.publicKey != nil {
 		return n.publicKey, nil
 	}
@@ -93,7 +92,7 @@ func (n *HTTP) PublicKey(ctx context.Context) (kyber.Point, error) {
 
 // RoundByNumber returns the round id and signature for the specified round number.
 // If the it does not exist, we generate the signature.
-func (n *HTTP) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, []byte, error) {
+func (n *Network) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, []byte, error) {
 	client, err := n.Client(ctx)
 	if err != nil {
 		return 0, nil, fmt.Errorf("client: %w", err)
@@ -118,7 +117,7 @@ func (n *HTTP) RoundByNumber(ctx context.Context, roundNumber uint64) (uint64, [
 }
 
 // RoundByDuration returns the round id and signature for the specified duration.
-func (n *HTTP) RoundByDuration(ctx context.Context, duration time.Duration) (uint64, []byte, error) {
+func (n *Network) RoundByDuration(ctx context.Context, duration time.Duration) (uint64, []byte, error) {
 	roundID, roundSignature, err := calculateRoundByDuration(ctx, duration, n)
 	if err != nil {
 		return 0, nil, fmt.Errorf("calculate future round: %w", err)
@@ -131,7 +130,7 @@ func (n *HTTP) RoundByDuration(ctx context.Context, duration time.Duration) (uin
 
 // calculateRoundByDuration will generate the round information based on the
 // specified duration.
-func calculateRoundByDuration(ctx context.Context, duration time.Duration, http *HTTP) (roundID uint64, roundSignature []byte, err error) {
+func calculateRoundByDuration(ctx context.Context, duration time.Duration, http *Network) (roundID uint64, roundSignature []byte, err error) {
 	client, err := http.Client(ctx)
 	if err != nil {
 		return 0, nil, fmt.Errorf("client: %w", err)

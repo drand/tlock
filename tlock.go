@@ -1,5 +1,6 @@
-// Package tlock provides an API for encrypting and decrypting data using
-// drand time lock encryption.
+// Package tlock provides an API for encrypting/decrypting data using
+// drand time lock encryption. This allows data to be encrypted and only
+// decrypted in the future.
 package tlock
 
 import (
@@ -22,31 +23,32 @@ const ErrTooEarly = "too early to decrypt"
 
 // =============================================================================
 
-// Metadata represents the metadata maintained in the encrypted output.
+// Metadata represents the metadata that must exist in the encrypted output
+// to support CipherDEK decryption.
 type Metadata struct {
 	RoundID   uint64
 	ChainHash string
 }
 
-// CipherDEK represents the different parts of the encrypted Data Encryption
-// Key after encryption.
+// CipherDEK represents the encrypted data encryption key (DEK) needed to decrypt
+// the cipher data.
 type CipherDEK struct {
 	KyberPoint []byte
 	CipherV    []byte
 	CipherW    []byte
 }
 
-// CipherInfo represents the different parts of the encrypted source.
+// CipherInfo represents the different parts of the fully encrypted output.
 type CipherInfo struct {
-	Metadata   Metadata
-	CipherDEK  CipherDEK
-	CipherData []byte
+	Metadata   Metadata  // Metadata provides information to decrypt the CipherDEK.
+	CipherDEK  CipherDEK // CipherDEK represents the key to decrypt the CipherData.
+	CipherData []byte    // CipherData represents the data that has been encrypted.
 }
 
 // =============================================================================
 
-// Network represents a network that is used to encrypt and decrypt a DEK
-// (Data Encryption Key) for use in encrypting and decrypting data.
+// Network represents a system that provides support for encrypting/decrypting
+// a DEK based on a future time.
 type Network interface {
 	Host() string
 	ChainHash() string
@@ -57,14 +59,14 @@ type Network interface {
 	RoundByDuration(ctx context.Context, duration time.Duration) (roundID uint64, roundSignature []byte, err error)
 }
 
-// Decoder knows how to decode encrypted time lock data.
+// Decoder knows how to decode CipherInfo from the specified source.
 type Decoder interface {
 	Decode(in io.Reader) (CipherInfo, error)
 }
 
-// Encoder knows how to encode encrypted time lock data.
+// Encoder knows how to encode CipherInfo to the specified destination.
 type Encoder interface {
-	Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherText []byte, md Metadata, armor bool) error
+	Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherData []byte, md Metadata, armor bool) error
 }
 
 // Encrypter encrypts plain data with the specified key.

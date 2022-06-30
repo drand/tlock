@@ -1,3 +1,5 @@
+// Package commands implements the processing of the command line flags and
+// processing of the encryption operation.
 package commands
 
 import (

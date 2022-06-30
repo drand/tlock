@@ -27,8 +27,8 @@ const (
 
 func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	var encoder base.Encoder
-	var encrypter aead.AEAD
-	network := http.New(testnetHost, testnetChainHash)
+	var encrypter aead.Encrypter
+	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
 	// =========================================================================
@@ -71,8 +71,8 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 
 func Test_EarlyDecryptionWithRound(t *testing.T) {
 	var encoder base.Encoder
-	var encrypter aead.AEAD
-	network := http.New(testnetHost, testnetChainHash)
+	var encrypter aead.Encrypter
+	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
 	// =========================================================================
@@ -122,8 +122,8 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	}
 
 	var encoder base.Encoder
-	var encrypter aead.AEAD
-	network := http.New(testnetHost, testnetChainHash)
+	var encrypter aead.Encrypter
+	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
 	// =========================================================================
@@ -171,8 +171,8 @@ func Test_EncryptionWithRound(t *testing.T) {
 	}
 
 	var encoder base.Encoder
-	var encrypter aead.AEAD
-	network := http.New(testnetHost, testnetChainHash)
+	var encrypter aead.Encrypter
+	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
 	// =========================================================================
