@@ -46,26 +46,6 @@ type CipherInfo struct {
 	CipherData []byte    // CipherData represents the data that has been encrypted.
 }
 
-// newCipherInfo constructs a CipherInfo.
-func newCipherInfo(cipherText *ibe.Ciphertext, cipherData []byte, metaData MetaData) (CipherInfo, error) {
-	kyberPoint, err := cipherText.U.MarshalBinary()
-	if err != nil {
-		return CipherInfo{}, fmt.Errorf("marshal kyber point: %w", err)
-	}
-
-	ci := CipherInfo{
-		MetaData: metaData,
-		CipherDEK: CipherDEK{
-			KyberPoint: kyberPoint,
-			CipherV:    cipherText.V,
-			CipherW:    cipherText.W,
-		},
-		CipherData: cipherData,
-	}
-
-	return ci, nil
-}
-
 // =============================================================================
 
 // Network represents a system that provides support for encrypting/decrypting
@@ -125,6 +105,42 @@ func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, encod
 
 // encrypt provides base functionality for all encryption operations.
 func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, roundNumber uint64, id []byte, armor bool) error {
+	const fileKeySize int = 32
+	dek := make([]byte, fileKeySize)
+	if _, err := rand.Read(dek); err != nil {
+		return fmt.Errorf("random key: %w", err)
+	}
+
+	publicKey, err := network.PublicKey(ctx)
+	if err != nil {
+		return fmt.Errorf("public key: %w", err)
+	}
+
+	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, dek)
+	if err != nil {
+		return fmt.Errorf("encrypt dek: %w", err)
+	}
+
+	kyberPoint, err := cipherText.U.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("marshal kyber point: %w", err)
+	}
+
+	cipherInfo := CipherInfo{
+		MetaData: MetaData{
+			RoundNumber: roundNumber,
+			ChainHash:   network.ChainHash(),
+		},
+		CipherDEK: CipherDEK{
+			KyberPoint: kyberPoint,
+			CipherV:    cipherText.V,
+			CipherW:    cipherText.W,
+		},
+	}
+
+	// Encrypt the data in 64k byte chunks, encoding the MetaData and CipherDEK
+	// with each unique chunk of encrypted data written.
+
 	var done bool
 	var data [1024 * 64]byte
 
@@ -146,35 +162,9 @@ func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, 
 			return fmt.Errorf("reading input data: %w", err)
 		}
 
-		const fileKeySize int = 32
-		dek := make([]byte, fileKeySize)
-		if _, err := rand.Read(dek); err != nil {
-			return fmt.Errorf("random key: %w", err)
-		}
-
-		publicKey, err := network.PublicKey(ctx)
-		if err != nil {
-			return fmt.Errorf("public key: %w", err)
-		}
-
-		cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, dek)
-		if err != nil {
-			return fmt.Errorf("encrypt dek: %w", err)
-		}
-
-		cipherData, err := encrypter.Encrypt(dek, data[:n])
+		cipherInfo.CipherData, err = encrypter.Encrypt(dek, data[:n])
 		if err != nil {
 			return fmt.Errorf("encrypt data: %w", err)
-		}
-
-		metaData := MetaData{
-			RoundNumber: roundNumber,
-			ChainHash:   network.ChainHash(),
-		}
-
-		cipherInfo, err := newCipherInfo(cipherText, cipherData, metaData)
-		if err != nil {
-			return fmt.Errorf("cipher info: %w", err)
 		}
 
 		if err := encoder.Encode(out, cipherInfo, armor); err != nil {
@@ -195,6 +185,8 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 			return nil
 		}
 
+		// Read and decode a chunk of encoded data.
+
 		info, err := decoder.Decode(in)
 
 		switch {
@@ -208,6 +200,8 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 			return fmt.Errorf("decoding input data: %w", err)
 		}
 
+		// Decrypt this chunk of data.
+
 		plainDEK, err := decryptDEK(ctx, info.CipherDEK, network, info.MetaData.RoundNumber)
 		if err != nil {
 			return fmt.Errorf("decrypt dek: %w", err)
@@ -217,6 +211,8 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 		if err != nil {
 			return fmt.Errorf("decrypt data: %w", err)
 		}
+
+		// Write the decrypted data to the destination.
 
 		if _, err := out.Write(plainData); err != nil {
 			return fmt.Errorf("write data: %w", err)
