@@ -21,7 +21,7 @@ import (
 )
 
 // ErrTooEarly represents an error when a decryption operation happens early.
-const ErrTooEarly = "too early to decrypt"
+var ErrTooEarly = errors.New("too early to decrypt")
 
 // =============================================================================
 
@@ -178,7 +178,7 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 func decryptDEK(ctx context.Context, cipherDEK CipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
 	id, ready := network.IsReadyToDecrypt(ctx, roundNumber)
 	if !ready {
-		return nil, errors.New(ErrTooEarly)
+		return nil, ErrTooEarly
 	}
 
 	var dekSignature bls.KyberG2

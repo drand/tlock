@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	_ "embed" // Calls init function.
+	"errors"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -64,7 +64,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 		t.Fatal("expecting decrypt error")
 	}
 
-	if !strings.Contains(err.Error(), tlock.ErrTooEarly) {
+	if !errors.Is(err, tlock.ErrTooEarly) {
 		t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
 	}
 }
@@ -111,7 +111,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 		t.Fatal("expecting decrypt error")
 	}
 
-	if !strings.Contains(err.Error(), tlock.ErrTooEarly) {
+	if !errors.Is(err, tlock.ErrTooEarly) {
 		t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
 	}
 }
