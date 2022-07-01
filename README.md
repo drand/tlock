@@ -1,8 +1,8 @@
-# tlock: Timelock Encryption made practical
+## tlock: Timelock Encryption made practical
 
 tlock gives you time based encryption and decryption capabilities using a Drand network. It is also a Go library.
 
-# Usage
+## Usage
 
 ```
 Usage:
