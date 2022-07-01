@@ -17,12 +17,11 @@ import (
 func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, encoder tlock.Encoder, network tlock.Network, encrypter tlock.Encrypter) error {
 	switch {
 	case flags.Round != 0:
-		client, err := network.Client(ctx)
+		lastestAvailableRound, err := network.RoundNumber(ctx, time.Now())
 		if err != nil {
-			return fmt.Errorf("network client: %w", err)
+			return fmt.Errorf("round %d is not valid anymore", flags.Round)
 		}
 
-		lastestAvailableRound := client.RoundAt(time.Now())
 		if flags.Round < lastestAvailableRound {
 			return fmt.Errorf("round %d is not valid anymore", flags.Round)
 		}

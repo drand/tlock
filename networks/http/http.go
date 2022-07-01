@@ -3,26 +3,23 @@ package http
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net"
 	"net/http"
 	"time"
 
-	"github.com/drand/drand/chain"
 	"github.com/drand/drand/client"
 	dhttp "github.com/drand/drand/client/http"
 	"github.com/drand/kyber"
-	bls "github.com/drand/kyber-bls12381"
-	"github.com/drand/kyber/pairing"
+	"github.com/drand/tlock"
 )
 
 // Network represents the network support using the drand http client.
 type Network struct {
 	host      string
 	chainHash string
-	client    client.Client
+	c         client.Client
 	publicKey kyber.Point
 }
 
@@ -44,42 +41,18 @@ func (n *Network) ChainHash() string {
 	return n.chainHash
 }
 
-// PairingSuite returns the pairing suite to use.
-func (*Network) PairingSuite() pairing.Suite {
-	return bls.NewBLS12381Suite()
-}
-
-// Client returns an HTTP client used to talk to the network.
-func (n *Network) Client(ctx context.Context) (client.Client, error) {
-	if n.client != nil {
-		return n.client, nil
-	}
-
-	hash, err := hex.DecodeString(n.chainHash)
-	if err != nil {
-		return nil, fmt.Errorf("decoding chain hash: %w", err)
-	}
-
-	client, err := dhttp.New(n.host, hash, transport())
-	if err != nil {
-		return nil, fmt.Errorf("creating client: %w", err)
-	}
-
-	n.client = client
-	return client, nil
-}
-
 // PublicKey returns the kyber point needed for encryption and decryption.
 func (n *Network) PublicKey(ctx context.Context) (kyber.Point, error) {
 	if n.publicKey != nil {
 		return n.publicKey, nil
 	}
 
-	if n.client == nil {
-		n.Client(ctx)
+	client, err := n.client(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	chain, err := n.client.Info(ctx)
+	chain, err := client.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting client information: %w", err)
 	}
@@ -92,7 +65,7 @@ func (n *Network) PublicKey(ctx context.Context) (kyber.Point, error) {
 // IsReadyToDecrypt makes a call to the network to validate it's time to decrypt
 // and if so, the required id is returned.
 func (n *Network) IsReadyToDecrypt(ctx context.Context, roundNumber uint64) ([]byte, bool) {
-	client, err := n.Client(ctx)
+	client, err := n.client(ctx)
 	if err != nil {
 		return nil, false
 	}
@@ -105,27 +78,31 @@ func (n *Network) IsReadyToDecrypt(ctx context.Context, roundNumber uint64) ([]b
 	return result.Signature(), true
 }
 
-// CalculateEncryptionID will generate the id required for encryption.
-func (*Network) CalculateEncryptionID(roundNumber uint64) ([]byte, error) {
-	h := sha256.New()
-	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
-		return nil, fmt.Errorf("sha256 write: %w", err)
+// RoundNumber will return the latest round of randomness that is available for
+// the specified time.
+func (n *Network) RoundNumber(ctx context.Context, t time.Time) (uint64, error) {
+	client, err := n.client(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("client: %w", err)
 	}
 
-	return h.Sum(nil), nil
+	roundNumber := client.RoundAt(t)
+	return roundNumber, nil
 }
 
-// GetEncryptionRoundAndID will generate the round information based on the
-// specified duration.
-func (n *Network) GetEncryptionRoundAndID(ctx context.Context, duration time.Duration) (uint64, []byte, error) {
-	client, err := n.Client(ctx)
+// EncryptionRoundAndID will generate the round information based on the specified duration.
+func (n *Network) EncryptionRoundAndID(ctx context.Context, duration time.Duration) (uint64, []byte, error) {
+	client, err := n.client(ctx)
 	if err != nil {
 		return 0, nil, fmt.Errorf("client: %w", err)
 	}
 
 	roundNumber := client.RoundAt(time.Now().Add(duration))
+	if err != nil {
+		return 0, nil, fmt.Errorf("client: %w", err)
+	}
 
-	id, err := n.CalculateEncryptionID(roundNumber)
+	id, err := tlock.CalculateEncryptionID(roundNumber)
 	if err != nil {
 		return 0, nil, fmt.Errorf("id: %w", err)
 	}
@@ -134,6 +111,26 @@ func (n *Network) GetEncryptionRoundAndID(ctx context.Context, duration time.Dur
 }
 
 // =============================================================================
+
+// client returns an HTTP client used to talk to the network.
+func (n *Network) client(ctx context.Context) (client.Client, error) {
+	if n.c != nil {
+		return n.c, nil
+	}
+
+	hash, err := hex.DecodeString(n.chainHash)
+	if err != nil {
+		return nil, fmt.Errorf("decoding chain hash: %w", err)
+	}
+
+	client, err := dhttp.New(n.host, hash, transport())
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	n.c = client
+	return client, nil
+}
 
 // transport sets reasonable defaults for the connection.
 func transport() *http.Transport {

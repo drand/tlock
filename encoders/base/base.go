@@ -5,19 +5,20 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 
-	"github.com/drand/kyber/encrypt/ibe"
 	"github.com/drand/tlock"
 )
 
 // Encoder knows how to encode/decode cipher information.
 type Encoder struct{}
 
-// Encode writes the cipher metadata, DEK and data to the output destination.
-func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherData []byte, md tlock.Metadata, armor bool) (err error) {
+// Encode writes the cipher info to the output destination. If armor is true,
+// the encoding is done with PEM encoding.
+func (Encoder) Encode(out io.Writer, cipherInfo tlock.CipherInfo, armor bool) (err error) {
 	var b bytes.Buffer
 	ww := bufio.NewWriter(&b)
 
@@ -38,85 +39,60 @@ func (Encoder) Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherData []byt
 		_, err = io.Copy(out, &b)
 	}()
 
-	kyberPoint, err := cipherDEK.U.MarshalBinary()
-	if err != nil {
-		return fmt.Errorf("marshal binary: %w", err)
-	}
+	roundNumber := strconv.FormatInt(int64(cipherInfo.MetaData.RoundNumber), 10)
+	fmt.Fprintf(ww, "%010d", len(roundNumber))
+	fmt.Fprint(ww, roundNumber)
 
-	fmt.Fprintln(ww, strconv.FormatInt(int64(md.RoundNumber), 10))
-	fmt.Fprintln(ww, md.ChainHash)
+	fmt.Fprintf(ww, "%010d", len(cipherInfo.MetaData.ChainHash))
+	fmt.Fprint(ww, cipherInfo.MetaData.ChainHash)
 
-	ww.Write(kyberPoint)
-	ww.Write(cipherDEK.V)
-	ww.Write(cipherDEK.W)
-	ww.Write(cipherData)
+	ww.Write(cipherInfo.CipherDEK.KyberPoint)
+	ww.Write(cipherInfo.CipherDEK.CipherV)
+	ww.Write(cipherInfo.CipherDEK.CipherW)
+
+	fmt.Fprintf(ww, "%010d", len(cipherInfo.CipherData))
+	ww.Write(cipherInfo.CipherData)
 
 	return nil
 }
 
-// Decode reads the cipher metadata, DEK and data from the input source.
+// Decode reads input source for the cipherInfo. If an io.EOF is returned, there
+// is no more cipherInfo to decode. If io.ErrUnexpectedEOF is returned, the last
+// cipherInfo has been decoded from the source.
 func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
-	data, err := io.ReadAll(in)
+
+	// if string(unknown[:5]) == "-----" {
+	// 	var block *pem.Block
+	// 	if block, _ = pem.Decode(data); block == nil {
+	// 		return tlock.CipherInfo{}, fmt.Errorf("decoding PEM: %s", "block is nil")
+	// 	}
+
+	// 	rr = bufio.NewReader(bytes.NewReader(block.Bytes))
+	// }
+
+	metaData, err := readMetaData(in)
 	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read the data from source: %w", err)
+		return tlock.CipherInfo{}, fmt.Errorf("round number: %w", err)
 	}
 
-	rr := bufio.NewReader(bytes.NewReader(data))
-	if string(data[:5]) == "-----" {
-		var block *pem.Block
-		if block, _ = pem.Decode(data); block == nil {
-			return tlock.CipherInfo{}, fmt.Errorf("decoding PEM: %s", "block is nil")
-		}
-
-		rr = bufio.NewReader(bytes.NewReader(block.Bytes))
+	cipherDEK, err := readCipherDEK(in)
+	if err != nil {
+		return tlock.CipherInfo{}, fmt.Errorf("cipher dek: %w", err)
 	}
 
-	roundNumberStr, err := readHeaderLine(rr)
-	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read round number: %w", err)
-	}
-
-	roundNumber, err := strconv.Atoi(roundNumberStr)
-	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to convert round: %w", err)
-	}
-
-	chainHash, err := readHeaderLine(rr)
-	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read chain hash: %w", err)
-	}
-
-	kyberPoint, err := readPayloadBytes(rr, 48)
-	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read kyber point: %w", err)
-	}
-
-	cipherV, err := readPayloadBytes(rr, 32)
-	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read cipher v: %w", err)
-	}
-
-	cipherW, err := readPayloadBytes(rr, 32)
-	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read cipher w: %w", err)
-	}
-
-	cipherData, err := readPayloadBytes(rr, 0)
-	if err != nil {
-		return tlock.CipherInfo{}, fmt.Errorf("failed to read cipher text w: %w", err)
+	cipherData, err := readCipherData(in)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return tlock.CipherInfo{}, fmt.Errorf("cipher data: %w", err)
 	}
 
 	ci := tlock.CipherInfo{
-		Metadata: tlock.Metadata{
-			RoundNumber: uint64(roundNumber),
-			ChainHash:   chainHash,
-		},
-		CipherDEK: tlock.CipherDEK{
-			KyberPoint: kyberPoint,
-			CipherV:    cipherV,
-			CipherW:    cipherW,
-		},
+		MetaData:   metaData,
+		CipherDEK:  cipherDEK,
 		CipherData: cipherData,
+	}
+
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return ci, io.ErrUnexpectedEOF
 	}
 
 	return ci, nil
@@ -124,26 +100,114 @@ func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
 
 // =============================================================================
 
-// readPayloadBytes reads the section of the payload.
-func readPayloadBytes(rr *bufio.Reader, len int) ([]byte, error) {
-	if len == 0 {
-		len = rr.Buffered()
+// readMetaData reads the metadata section from the input source.
+func readMetaData(in io.Reader) (tlock.MetaData, error) {
+
+	// ------------------------------------------------------------
+
+	str, err := readBytes(in, 10)
+	if err != nil {
+		return tlock.MetaData{}, fmt.Errorf("read round string: %w", err)
 	}
 
-	data := make([]byte, len)
-	if _, err := rr.Read(data); err != nil {
-		return nil, err
+	len, err := strconv.Atoi(string(str))
+	if err != nil {
+		return tlock.MetaData{}, fmt.Errorf("convert round length: %w", err)
 	}
 
-	return data, nil
+	roundStr, err := readBytes(in, len)
+	if err != nil {
+		return tlock.MetaData{}, fmt.Errorf("read round: %w", err)
+	}
+
+	roundNumber, err := strconv.Atoi(string(roundStr))
+	if err != nil {
+		return tlock.MetaData{}, fmt.Errorf("convert round: %w", err)
+	}
+
+	// ------------------------------------------------------------
+
+	str, err = readBytes(in, 10)
+	if err != nil {
+		return tlock.MetaData{}, fmt.Errorf("read chain hash string: %w", err)
+	}
+
+	len, err = strconv.Atoi(string(str))
+	if err != nil {
+		return tlock.MetaData{}, fmt.Errorf("convert chain hash length: %w", err)
+	}
+
+	chainHash, err := readBytes(in, len)
+	if err != nil {
+		return tlock.MetaData{}, fmt.Errorf("read chain hash: %w", err)
+	}
+
+	// ------------------------------------------------------------
+
+	md := tlock.MetaData{
+		RoundNumber: uint64(roundNumber),
+		ChainHash:   string(chainHash),
+	}
+
+	return md, nil
 }
 
-// readHeaderLine reads a line of header information.
-func readHeaderLine(rr *bufio.Reader) (string, error) {
-	text, err := rr.ReadString('\n')
+// readCipherDEK reads the cipher dek section from the input source.
+func readCipherDEK(in io.Reader) (tlock.CipherDEK, error) {
+	kyberPoint, err := readBytes(in, 48)
 	if err != nil {
-		return "", err
+		return tlock.CipherDEK{}, fmt.Errorf("read kyber point: %w", err)
 	}
 
-	return text[:len(text)-1], nil
+	cipherV, err := readBytes(in, 32)
+	if err != nil {
+		return tlock.CipherDEK{}, fmt.Errorf("read cipher v: %w", err)
+	}
+
+	cipherW, err := readBytes(in, 32)
+	if err != nil {
+		return tlock.CipherDEK{}, fmt.Errorf("read cipher w: %w", err)
+	}
+
+	cd := tlock.CipherDEK{
+		KyberPoint: kyberPoint,
+		CipherV:    cipherV,
+		CipherW:    cipherW,
+	}
+
+	return cd, nil
+}
+
+// readCipherData reads the cipher data from the input source.
+func readCipherData(in io.Reader) ([]byte, error) {
+	str, err := readBytes(in, 10)
+	if err != nil {
+		return nil, fmt.Errorf("read cipher data string: %w", err)
+	}
+
+	len, err := strconv.Atoi(string(str))
+	if err != nil {
+		return nil, fmt.Errorf("convert cipher data length: %w", err)
+	}
+
+	return readBytes(in, len)
+}
+
+// readBytes reads the specified number of bytes from the reader.
+func readBytes(in io.Reader, length int) ([]byte, error) {
+	data := make([]byte, length)
+	n, err := io.ReadFull(in, data)
+
+	switch {
+	case err == io.EOF:
+		return []byte{}, io.EOF
+
+	case err == io.ErrUnexpectedEOF:
+		return data[:n], io.ErrUnexpectedEOF
+
+	case err != nil:
+		return []byte{}, err
+	}
+
+	return data[:n], nil
 }

@@ -6,18 +6,17 @@ package tlock
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/drand/drand/chain"
-	"github.com/drand/drand/client"
 	"github.com/drand/drand/common/scheme"
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/encrypt/ibe"
-	"github.com/drand/kyber/pairing"
 )
 
 // ErrTooEarly represents an error when a decryption operation happens early.
@@ -25,9 +24,9 @@ var ErrTooEarly = errors.New("too early to decrypt")
 
 // =============================================================================
 
-// Metadata represents the metadata that must exist in the encrypted output
+// MetaData represents the metadata that must exist in the encrypted output
 // to support CipherDEK decryption.
-type Metadata struct {
+type MetaData struct {
 	RoundNumber uint64
 	ChainHash   string
 }
@@ -42,9 +41,29 @@ type CipherDEK struct {
 
 // CipherInfo represents the different parts of the fully encrypted output.
 type CipherInfo struct {
-	Metadata   Metadata  // Metadata provides information to decrypt the CipherDEK.
+	MetaData   MetaData  // Metadata provides information to decrypt the CipherDEK.
 	CipherDEK  CipherDEK // CipherDEK represents the key to decrypt the CipherData.
 	CipherData []byte    // CipherData represents the data that has been encrypted.
+}
+
+// newCipherInfo constructs a CipherInfo.
+func newCipherInfo(cipherText *ibe.Ciphertext, cipherData []byte, metaData MetaData) (CipherInfo, error) {
+	kyberPoint, err := cipherText.U.MarshalBinary()
+	if err != nil {
+		return CipherInfo{}, fmt.Errorf("marshal kyber point: %w", err)
+	}
+
+	ci := CipherInfo{
+		MetaData: metaData,
+		CipherDEK: CipherDEK{
+			KyberPoint: kyberPoint,
+			CipherV:    cipherText.V,
+			CipherW:    cipherText.W,
+		},
+		CipherData: cipherData,
+	}
+
+	return ci, nil
 }
 
 // =============================================================================
@@ -54,12 +73,10 @@ type CipherInfo struct {
 type Network interface {
 	Host() string
 	ChainHash() string
-	PairingSuite() pairing.Suite
-	Client(ctx context.Context) (client.Client, error)
 	PublicKey(ctx context.Context) (kyber.Point, error)
 	IsReadyToDecrypt(ctx context.Context, roundNumber uint64) (id []byte, ready bool)
-	CalculateEncryptionID(roundNumber uint64) ([]byte, error)
-	GetEncryptionRoundAndID(ctx context.Context, duration time.Duration) (roundNumber uint64, id []byte, err error)
+	RoundNumber(ctx context.Context, t time.Time) (uint64, error)
+	EncryptionRoundAndID(ctx context.Context, duration time.Duration) (roundNumber uint64, id []byte, err error)
 }
 
 // Decoder knows how to decode CipherInfo from the specified source.
@@ -69,7 +86,7 @@ type Decoder interface {
 
 // Encoder knows how to encode CipherInfo to the specified destination.
 type Encoder interface {
-	Encode(out io.Writer, cipherDEK *ibe.Ciphertext, cipherData []byte, md Metadata, armor bool) error
+	Encode(out io.Writer, cipherInfo CipherInfo, armor bool) error
 }
 
 // Encrypter encrypts plain data with the specified key.
@@ -87,7 +104,7 @@ type Decrypter interface {
 // EncryptWithRound will encrypt the data that is read by the reader which can
 // only be decrypted in the future specified round.
 func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, roundNumber uint64, armor bool) error {
-	id, err := network.CalculateEncryptionID(roundNumber)
+	id, err := CalculateEncryptionID(roundNumber)
 	if err != nil {
 		return fmt.Errorf("round by number: %w", err)
 	}
@@ -98,7 +115,7 @@ func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, encoder 
 // EncryptWithDuration will encrypt the data that is read by the reader which can
 // only be decrypted in the future specified duration.
 func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, duration time.Duration, armor bool) error {
-	roundNumber, id, err := network.GetEncryptionRoundAndID(ctx, duration)
+	roundNumber, id, err := network.EncryptionRoundAndID(ctx, duration)
 	if err != nil {
 		return fmt.Errorf("round by duration: %w", err)
 	}
@@ -108,42 +125,62 @@ func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, encod
 
 // encrypt provides base functionality for all encryption operations.
 func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, roundNumber uint64, id []byte, armor bool) error {
-	data, err := io.ReadAll(in)
-	if err != nil {
-		return fmt.Errorf("reading input data: %w", err)
-	}
+	var done bool
+	var data [1024 * 64]byte
 
-	const fileKeySize int = 32
-	dek := make([]byte, fileKeySize)
-	if _, err := rand.Read(dek); err != nil {
-		return fmt.Errorf("random key: %w", err)
-	}
+	for {
+		if done {
+			return nil
+		}
 
-	publicKey, err := network.PublicKey(ctx)
-	if err != nil {
-		return fmt.Errorf("public key: %w", err)
-	}
+		n, err := io.ReadFull(in, data[:])
 
-	cipherDEK, err := ibe.Encrypt(network.PairingSuite(), publicKey, id, dek)
-	if err != nil {
-		return fmt.Errorf("encrypt dek: %w", err)
-	}
+		switch {
+		case errors.Is(err, io.EOF):
+			return nil
 
-	cipherData, err := encrypter.Encrypt(dek, data)
-	if err != nil {
-		return fmt.Errorf("encrypt data: %w", err)
-	}
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			done = true
 
-	metadata := Metadata{
-		RoundNumber: roundNumber,
-		ChainHash:   network.ChainHash(),
-	}
+		case err != nil:
+			return fmt.Errorf("reading input data: %w", err)
+		}
 
-	if err := encoder.Encode(out, cipherDEK, cipherData, metadata, armor); err != nil {
-		return fmt.Errorf("encode: %w", err)
-	}
+		const fileKeySize int = 32
+		dek := make([]byte, fileKeySize)
+		if _, err := rand.Read(dek); err != nil {
+			return fmt.Errorf("random key: %w", err)
+		}
 
-	return nil
+		publicKey, err := network.PublicKey(ctx)
+		if err != nil {
+			return fmt.Errorf("public key: %w", err)
+		}
+
+		cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, dek)
+		if err != nil {
+			return fmt.Errorf("encrypt dek: %w", err)
+		}
+
+		cipherData, err := encrypter.Encrypt(dek, data[:n])
+		if err != nil {
+			return fmt.Errorf("encrypt data: %w", err)
+		}
+
+		metaData := MetaData{
+			RoundNumber: roundNumber,
+			ChainHash:   network.ChainHash(),
+		}
+
+		cipherInfo, err := newCipherInfo(cipherText, cipherData, metaData)
+		if err != nil {
+			return fmt.Errorf("cipher info: %w", err)
+		}
+
+		if err := encoder.Encode(out, cipherInfo, armor); err != nil {
+			return fmt.Errorf("encode: %w", err)
+		}
+	}
 }
 
 // =============================================================================
@@ -151,26 +188,40 @@ func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, 
 // Decrypt will decrypt the data that is read by the reader and writes the
 // original data to the output.
 func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, network Network, decrypter Decrypter) error {
-	info, err := decoder.Decode(in)
-	if err != nil {
-		return fmt.Errorf("decode: %w", err)
-	}
+	var done bool
 
-	plainDEK, err := decryptDEK(ctx, info.CipherDEK, network, info.Metadata.RoundNumber)
-	if err != nil {
-		return fmt.Errorf("decrypt dek: %w", err)
-	}
+	for {
+		if done {
+			return nil
+		}
 
-	plainData, err := decrypter.Decrypt(plainDEK, info.CipherData)
-	if err != nil {
-		return fmt.Errorf("decrypt data: %w", err)
-	}
+		info, err := decoder.Decode(in)
 
-	if _, err := out.Write(plainData); err != nil {
-		return fmt.Errorf("write data: %w", err)
-	}
+		switch {
+		case errors.Is(err, io.EOF):
+			return nil
 
-	return nil
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			done = true
+
+		case err != nil:
+			return fmt.Errorf("decoding input data: %w", err)
+		}
+
+		plainDEK, err := decryptDEK(ctx, info.CipherDEK, network, info.MetaData.RoundNumber)
+		if err != nil {
+			return fmt.Errorf("decrypt dek: %w", err)
+		}
+
+		plainData, err := decrypter.Decrypt(plainDEK, info.CipherData)
+		if err != nil {
+			return fmt.Errorf("decrypt data: %w", err)
+		}
+
+		if _, err := out.Write(plainData); err != nil {
+			return fmt.Errorf("write data: %w", err)
+		}
+	}
 }
 
 // decryptDEK attempts to decrypt an encrypted DEK against the provided network
@@ -214,10 +265,22 @@ func decryptDEK(ctx context.Context, cipherDEK CipherDEK, network Network, round
 		W: cipherDEK.CipherW,
 	}
 
-	plainDEK, err = ibe.Decrypt(network.PairingSuite(), publicKey, &dekSignature, &dek)
+	plainDEK, err = ibe.Decrypt(bls.NewBLS12381Suite(), publicKey, &dekSignature, &dek)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
 
 	return plainDEK, nil
+}
+
+// =============================================================================
+
+// CalculateEncryptionID will generate the id required for encryption.
+func CalculateEncryptionID(roundNumber uint64) ([]byte, error) {
+	h := sha256.New()
+	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
+		return nil, fmt.Errorf("sha256 write: %w", err)
+	}
+
+	return h.Sum(nil), nil
 }

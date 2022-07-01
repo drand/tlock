@@ -85,11 +85,10 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	}
 	defer in.Close()
 
-	client, err := network.Client(ctx)
+	futureRound, err := network.RoundNumber(ctx, time.Now().Add(1*time.Minute))
 	if err != nil {
 		t.Fatalf("client: %s", err)
 	}
-	futureRound := client.RoundAt(time.Now().Add(1 * time.Minute))
 
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
@@ -188,11 +187,10 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	client, err := network.Client(context.Background())
+	futureRound, err := network.RoundNumber(ctx, time.Now().Add(6*time.Second))
 	if err != nil {
-		t.Fatalf("client error :%s", err)
+		t.Fatalf("client: %s", err)
 	}
-	futureRound := client.RoundAt(time.Now().Add(6 * time.Second))
 
 	err = tlock.EncryptWithRound(ctx, &cipherData, in, encoder, network, encrypter, futureRound, false)
 	if err != nil {
