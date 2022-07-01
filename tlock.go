@@ -39,7 +39,7 @@ type CipherDEK struct {
 	CipherW    []byte
 }
 
-// CipherInfo represents the different parts of the fully encrypted output.
+// CipherInfo represents the data that is encoded and decoded.
 type CipherInfo struct {
 	MetaData   MetaData  // Metadata provides information to decrypt the CipherDEK.
 	CipherDEK  CipherDEK // CipherDEK represents the key to decrypt the CipherData.
@@ -103,29 +103,34 @@ func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, encod
 	return encrypt(ctx, out, in, encoder, network, encrypter, roundNumber, id, armor)
 }
 
-// encrypt provides base functionality for all encryption operations.
+// encrypt constructs a data encryption key that is encrypted with the time
+// lock encryption for the specifed round. Then the input source is encrypted
+// and encoded to the output destination in 64k byte chunks.
 func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, roundNumber uint64, id []byte, armor bool) error {
+
+	// Create the DEK for this encryption.
 	const fileKeySize int = 32
 	dek := make([]byte, fileKeySize)
 	if _, err := rand.Read(dek); err != nil {
 		return fmt.Errorf("random key: %w", err)
 	}
-
 	publicKey, err := network.PublicKey(ctx)
 	if err != nil {
 		return fmt.Errorf("public key: %w", err)
 	}
 
+	// Encrypt the DEK using time lock encryption.
 	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, dek)
 	if err != nil {
 		return fmt.Errorf("encrypt dek: %w", err)
 	}
 
+	// Construct the cipher information that will be written to
+	// the ouput destination.
 	kyberPoint, err := cipherText.U.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("marshal kyber point: %w", err)
 	}
-
 	cipherInfo := CipherInfo{
 		MetaData: MetaData{
 			RoundNumber: roundNumber,
@@ -138,8 +143,8 @@ func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, 
 		},
 	}
 
-	// Encrypt the data in 64k byte chunks, encoding the MetaData and CipherDEK
-	// with each unique chunk of encrypted data written.
+	// Encrypt the source data in 64k byte chunks, encoding the MetaData and
+	// CipherDEK with each unique chunk of encrypted data that is written.
 
 	var done bool
 	var data [1024 * 64]byte
@@ -149,46 +154,12 @@ func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, 
 			return nil
 		}
 
+		// Read in a 64k chunk of data from the input source.
 		n, err := io.ReadFull(in, data[:])
 
-		switch {
-		case errors.Is(err, io.EOF):
-			return nil
-
-		case errors.Is(err, io.ErrUnexpectedEOF):
-			done = true
-
-		case err != nil:
-			return fmt.Errorf("reading input data: %w", err)
-		}
-
-		cipherInfo.CipherData, err = encrypter.Encrypt(dek, data[:n])
-		if err != nil {
-			return fmt.Errorf("encrypt data: %w", err)
-		}
-
-		if err := encoder.Encode(out, cipherInfo, armor); err != nil {
-			return fmt.Errorf("encode: %w", err)
-		}
-	}
-}
-
-// =============================================================================
-
-// Decrypt will decrypt the data that is read by the reader and writes the
-// original data to the output.
-func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, network Network, decrypter Decrypter) error {
-	var done bool
-
-	for {
-		if done {
-			return nil
-		}
-
-		// Read and decode a chunk of encoded data.
-
-		info, err := decoder.Decode(in)
-
+		// io.EOF:              There were no bytes left to read.
+		// io.ErrUnexpectedEOF: We read the last remaining bytes from the input source.
+		// err != nil           There is a problem with the encoding.
 		switch {
 		case errors.Is(err, io.EOF):
 			return nil
@@ -200,20 +171,63 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 			return fmt.Errorf("decoding input data: %w", err)
 		}
 
-		// Decrypt this chunk of data.
+		// Encrypt the chunk of data.
+		cipherInfo.CipherData, err = encrypter.Encrypt(dek, data[:n])
+		if err != nil {
+			return fmt.Errorf("encrypt data: %w", err)
+		}
 
+		// Encode this chunk of data to the output destination.
+		if err := encoder.Encode(out, cipherInfo, armor); err != nil {
+			return fmt.Errorf("encode: %w", err)
+		}
+	}
+}
+
+// =============================================================================
+
+// Decrypt decode the input source for a CipherData value. For each CipherData
+// value that is decoded, the DEK is decrypted with time lock decryption so
+// the cipher data can then be decrypted with that key and written to the
+// specified output destination.
+func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, network Network, decrypter Decrypter) error {
+	var done bool
+
+	for {
+		if done {
+			return nil
+		}
+
+		// Read and decode the next cipherInfo that exists in the input source.
+		info, err := decoder.Decode(in)
+
+		// io.EOF:              There were no bytes left to read.
+		// io.ErrUnexpectedEOF: We read the last remaining bytes from the input source.
+		// err != nil           There is a problem with the decoding.
+		switch {
+		case errors.Is(err, io.EOF):
+			return nil
+
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			done = true
+
+		case err != nil:
+			return fmt.Errorf("decoding input data: %w", err)
+		}
+
+		// Decrypt the dek using time lock decryption.
 		plainDEK, err := decryptDEK(ctx, info.CipherDEK, network, info.MetaData.RoundNumber)
 		if err != nil {
 			return fmt.Errorf("decrypt dek: %w", err)
 		}
 
+		// Decrypt the chunk of data returned with the cipherInfo.
 		plainData, err := decrypter.Decrypt(plainDEK, info.CipherData)
 		if err != nil {
 			return fmt.Errorf("decrypt data: %w", err)
 		}
 
 		// Write the decrypted data to the destination.
-
 		if _, err := out.Write(plainData); err != nil {
 			return fmt.Errorf("write data: %w", err)
 		}
