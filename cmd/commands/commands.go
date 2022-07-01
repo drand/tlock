@@ -33,7 +33,7 @@ Options:
 	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
 	-D, --duration How long to wait before the message can be decrypted.
 	-o, --output   Write the result to the file at path OUTPUT.
-	-a, --armor    Encrypt to a PEM encoded format.
+	-a, --armor    Encrypt or Decrypt using the PEM encoded format.
 
 If the OUTPUT exists, it will be overwritten.
 
@@ -127,9 +127,6 @@ func validateFlags(f Flags) error {
 	case f.Decrypt:
 		if f.Encrypt {
 			return fmt.Errorf("-e/--encrypt can't be used with -d/--decrypt")
-		}
-		if f.Armor {
-			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
 		}
 		if f.Duration != defaultDuration {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")

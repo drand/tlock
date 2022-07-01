@@ -59,16 +59,14 @@ func (Encoder) Encode(out io.Writer, cipherInfo tlock.CipherInfo, armor bool) (e
 // Decode reads input source for the cipherInfo. If an io.EOF is returned, there
 // is no more cipherInfo to decode. If io.ErrUnexpectedEOF is returned, the last
 // cipherInfo has been decoded from the source.
-func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
-
-	// if string(unknown[:5]) == "-----" {
-	// 	var block *pem.Block
-	// 	if block, _ = pem.Decode(data); block == nil {
-	// 		return tlock.CipherInfo{}, fmt.Errorf("decoding PEM: %s", "block is nil")
-	// 	}
-
-	// 	rr = bufio.NewReader(bytes.NewReader(block.Bytes))
-	// }
+func (Encoder) Decode(in io.Reader, armor bool) (tlock.CipherInfo, error) {
+	if armor {
+		var err error
+		in, err = readPEM(in)
+		if err != nil {
+			return tlock.CipherInfo{}, fmt.Errorf("read pem: %w", err)
+		}
+	}
 
 	metaData, err := readMetaData(in)
 	if err != nil {
@@ -99,6 +97,68 @@ func (Encoder) Decode(in io.Reader) (tlock.CipherInfo, error) {
 }
 
 // =============================================================================
+
+// readPEM reads the next PEM section in the input source.
+func readPEM(in io.Reader) (io.Reader, error) {
+
+	// Read the header for this PEM section.
+	hdr := make([]byte, 34)
+	if _, err := io.ReadFull(in, hdr); err != nil {
+		return nil, fmt.Errorf("read header: %w", err)
+	}
+
+	// Read the next 64k bytes.
+	data := make([]byte, 64*1024)
+	n, err := io.ReadFull(in, data)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return nil, fmt.Errorf("read data: %w", err)
+	}
+
+	// If we read the remaining data from the input source, we have everything.
+	// If not, we need to find the end of this PEM section. We don't know the
+	// length, so we need to end the END marker.
+	if n == len(data) {
+		b := make([]byte, 1)
+		for {
+
+			// Read in one byte at a time.
+			if _, err := io.ReadFull(in, b); err != nil {
+				return nil, fmt.Errorf("read final data: %w", err)
+			}
+
+			// Write that byte to the data buffer.
+			data = append(data, b[0])
+
+			// If we found the beginning of the END marker, we can read
+			// the remaining 32 bytes.
+			if b[0] == byte('-') {
+				end := make([]byte, 32)
+				if _, err := io.ReadFull(in, end); err != nil {
+					return nil, fmt.Errorf("read end: %w", err)
+				}
+
+				// Write the remaining bytes to the buffer.
+				data = append(data, end...)
+
+				break
+			}
+		}
+	}
+
+	// Appened the header and data together.
+	pemData := make([]byte, len(hdr)+len(data))
+	copy(pemData, hdr)
+	copy(pemData[len(hdr):], data)
+
+	// Encode the PEM block.
+	var block *pem.Block
+	if block, _ = pem.Decode(pemData); block == nil {
+		return nil, errors.New("block nil")
+	}
+
+	// The caller needs a reader to process the data.
+	return bytes.NewReader(block.Bytes), nil
+}
 
 // readMetaData reads the metadata section from the input source.
 func readMetaData(in io.Reader) (tlock.MetaData, error) {

@@ -61,7 +61,7 @@ type Network interface {
 
 // Decoder knows how to decode CipherInfo from the specified source.
 type Decoder interface {
-	Decode(in io.Reader) (CipherInfo, error)
+	Decode(in io.Reader, armor bool) (CipherInfo, error)
 }
 
 // Encoder knows how to encode CipherInfo to the specified destination.
@@ -190,7 +190,7 @@ func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, 
 // value that is decoded, the DEK is decrypted with time lock decryption so
 // the cipher data can then be decrypted with that key and written to the
 // specified output destination.
-func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, network Network, decrypter Decrypter) error {
+func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, network Network, decrypter Decrypter, armor bool) error {
 	var done bool
 
 	for {
@@ -199,7 +199,7 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 		}
 
 		// Read and decode the next cipherInfo that exists in the input source.
-		info, err := decoder.Decode(in)
+		info, err := decoder.Decode(in, armor)
 
 		// io.EOF:              There were no bytes left to read.
 		// io.ErrUnexpectedEOF: We read the last remaining bytes from the input source.
