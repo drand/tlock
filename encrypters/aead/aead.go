@@ -21,18 +21,25 @@ func (Encrypter) Encrypt(key []byte, plainData []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	// Having a null nonce is fine beause we're generating a new random
+	// key for each encryption.
 	nonce := make([]byte, chacha20poly1305.NonceSize)
+
 	return aead.Seal(nil, nonce, plainData, nil), nil
 }
 
 // Decrypt will decrypt the cipher data using the specified key with the
-// chacha20poly1305 algorithm.
+// chacha20poly1305 algorithm. Having a null nonce is fine beause we're
+// generating a new random key for each encryption.
 func (Encrypter) Decrypt(key []byte, cipherData []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
 	}
 
+	// Having a null nonce is fine beause we're generating a new random
+	// key for each encryption.
 	nonce := make([]byte, chacha20poly1305.NonceSize)
+
 	return aead.Open(nil, nonce, cipherData, nil)
 }
