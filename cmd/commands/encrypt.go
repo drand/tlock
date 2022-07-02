@@ -19,11 +19,11 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 	case flags.Round != 0:
 		lastestAvailableRound, err := network.RoundNumber(ctx, time.Now())
 		if err != nil {
-			return fmt.Errorf("round %d is not valid anymore", flags.Round)
+			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
 
 		if flags.Round < lastestAvailableRound {
-			return fmt.Errorf("round %d is not valid anymore", flags.Round)
+			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
 
 		return tlock.EncryptWithRound(ctx, out, in, encoder, network, encrypter, flags.Round, flags.Armor)
