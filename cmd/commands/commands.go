@@ -41,7 +41,7 @@ NETWORK defaults to the Drand test network http://pl-us.testnet.drand.sh/.
 
 CHAIN defaults to the "unchained" hash in the default test network: 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
 
-When --duration is specified, it expects a value following Golang's type Duration and its units. It also accepts the units for day, month and year: d, M, y.
+When --duration is specified, it expects a value following Golang's type Duration and its units ("ns", "us" (or "µs"), "ms", "s", "m", "h"). It also accepts the units for day, month and year: d, M, y.
 
 Example:
     $ ./tle -D 10d -o encrypted_file data_to_encrypt
