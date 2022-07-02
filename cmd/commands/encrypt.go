@@ -55,29 +55,29 @@ func parseDuration(duration string) (time.Duration, error) {
 	now := time.Now()
 
 	if number, _, found := strings.Cut(duration, "d"); found {
-		i, err := strconv.Atoi(number)
+		days, err := strconv.Atoi(number)
 		if err != nil {
 			return time.Second, fmt.Errorf("parse day duration: %w", err)
 		}
-		diff := now.AddDate(0, 0, i).Sub(now)
+		diff := now.AddDate(0, 0, days).Sub(now)
 		return diff, nil
 	}
 
 	if number, _, found := strings.Cut(duration, "M"); found {
-		i, err := strconv.Atoi(number)
+		months, err := strconv.Atoi(number)
 		if err != nil {
 			return time.Second, fmt.Errorf("parse month duration: %w", err)
 		}
-		diff := now.AddDate(0, i, 0).Sub(now)
+		diff := now.AddDate(0, months, 0).Sub(now)
 		return diff, nil
 	}
 
 	if number, _, found := strings.Cut(duration, "y"); found {
-		i, err := strconv.Atoi(number)
+		years, err := strconv.Atoi(number)
 		if err != nil {
 			return time.Second, fmt.Errorf("parse year duration: %w", err)
 		}
-		diff := now.AddDate(i, 0, 0).Sub(now)
+		diff := now.AddDate(years, 0, 0).Sub(now)
 		return diff, nil
 	}
 

@@ -39,8 +39,8 @@ func (Encoder) Encode(out io.Writer, cipherInfo tlock.CipherInfo, armor bool) (e
 		_, err = io.Copy(out, &b)
 	}()
 
-	roundNumber := strconv.FormatInt(int64(cipherInfo.MetaData.RoundNumber), 10)
-	fmt.Fprintf(ww, "%010d", len(roundNumber))
+	roundNumber := strconv.FormatUint(cipherInfo.MetaData.RoundNumber, 10)
+	fmt.Fprintf(ww, "%020d", len(roundNumber))
 	fmt.Fprint(ww, roundNumber)
 
 	fmt.Fprintf(ww, "%010d", len(cipherInfo.MetaData.ChainHash))
@@ -165,7 +165,7 @@ func readMetaData(in io.Reader) (tlock.MetaData, error) {
 
 	// ------------------------------------------------------------
 
-	str, err := readBytes(in, 10)
+	str, err := readBytes(in, 20)
 	if err != nil {
 		return tlock.MetaData{}, fmt.Errorf("read round string: %w", err)
 	}
@@ -180,7 +180,7 @@ func readMetaData(in io.Reader) (tlock.MetaData, error) {
 		return tlock.MetaData{}, fmt.Errorf("read round: %w", err)
 	}
 
-	roundNumber, err := strconv.Atoi(string(roundStr))
+	roundNumber, err := strconv.ParseUint(string(roundStr), 10, 64)
 	if err != nil {
 		return tlock.MetaData{}, fmt.Errorf("convert round: %w", err)
 	}
