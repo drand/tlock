@@ -55,7 +55,7 @@ type Network interface {
 	ChainHash() string
 	PublicKey(ctx context.Context) (kyber.Point, error)
 	IsReadyToDecrypt(ctx context.Context, roundNumber uint64) (id []byte, ready bool)
-	RoundNumberByTime(ctx context.Context, t time.Time) (uint64, error)
+	RoundNumber(ctx context.Context, t time.Time) (uint64, error)
 }
 
 // Decoder knows how to decode CipherInfo from the specified source.

@@ -77,10 +77,10 @@ func (n *Network) IsReadyToDecrypt(ctx context.Context, roundNumber uint64) ([]b
 	return result.Signature(), true
 }
 
-// RoundNumberByTime will return the latest round of randomness that is available
+// RoundNumber will return the latest round of randomness that is available
 // for the specified time. To handle a duration construct time like this:
 // time.Now().Add(6*time.Second)
-func (n *Network) RoundNumberByTime(ctx context.Context, t time.Time) (uint64, error) {
+func (n *Network) RoundNumber(ctx context.Context, t time.Time) (uint64, error) {
 	client, err := n.client(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("client: %w", err)

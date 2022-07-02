@@ -19,7 +19,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 
 	switch {
 	case flags.Round != 0:
-		lastestAvailableRound, err := network.RoundNumberByTime(ctx, time.Now())
+		lastestAvailableRound, err := network.RoundNumber(ctx, time.Now())
 		if err != nil {
 			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
@@ -36,7 +36,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		roundNumber, err := network.RoundNumberByTime(ctx, time.Now().Add(duration))
+		roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
 		if err != nil {
 			return fmt.Errorf("round by duration: %w", err)
 		}

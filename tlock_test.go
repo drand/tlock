@@ -49,7 +49,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 
 	tl := tlock.NewEncrypter(network, encrypter, encoder)
 
-	roundNumber, err := network.RoundNumberByTime(ctx, time.Now().Add(duration))
+	roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
 	if err != nil {
 		t.Fatalf("round by duration: %s", err)
 	}
@@ -92,7 +92,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	}
 	defer in.Close()
 
-	futureRound, err := network.RoundNumberByTime(ctx, time.Now().Add(1*time.Minute))
+	futureRound, err := network.RoundNumber(ctx, time.Now().Add(1*time.Minute))
 	if err != nil {
 		t.Fatalf("client: %s", err)
 	}
@@ -152,7 +152,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 
 	tl := tlock.NewEncrypter(network, encrypter, encoder)
 
-	roundNumber, err := network.RoundNumberByTime(ctx, time.Now().Add(duration))
+	roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
 	if err != nil {
 		t.Fatalf("round by duration: %s", err)
 	}
@@ -203,7 +203,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	futureRound, err := network.RoundNumberByTime(ctx, time.Now().Add(6*time.Second))
+	futureRound, err := network.RoundNumber(ctx, time.Now().Add(6*time.Second))
 	if err != nil {
 		t.Fatalf("client: %s", err)
 	}
