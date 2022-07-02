@@ -87,7 +87,7 @@ type Encrypter struct {
 	encoder       Encoder
 }
 
-// New constructs a Tlock for use with the specified network, encrypter, and encoder.
+// NewEncrypter constructs a Tlock for use with the specified network, encrypter, and encoder.
 func NewEncrypter(network Network, dataEncrypter DataEncrypter, encoder Encoder) Encrypter {
 	return Encrypter{
 		network:       network,
@@ -207,7 +207,7 @@ type Decrypter struct {
 	decoder       Decoder
 }
 
-// New constructs a Tlock for use with the specified network, decrypter, and decoder.
+// NewDecrypter constructs a Tlock for use with the specified network, decrypter, and decoder.
 func NewDecrypter(network Network, dataDecrypter DataDecrypter, decoder Decoder) Decrypter {
 	return Decrypter{
 		network:       network,

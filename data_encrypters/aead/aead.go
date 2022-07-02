@@ -27,7 +27,7 @@ func (DataEncrypter) Encrypt(key []byte, plainData []byte) ([]byte, error) {
 	return aead.Seal(nil, nonce, plainData, nil), nil
 }
 
-// DataEncrypter provides the ability to decrypt data using the chacha20poly1305 algorithm.
+// DataDecrypter provides the ability to decrypt data using the chacha20poly1305 algorithm.
 type DataDecrypter struct{}
 
 // Decrypt will decrypt the cipher data using the specified key with the
