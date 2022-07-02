@@ -21,7 +21,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 	case flags.Round != 0:
 		lastestAvailableRound, err := network.RoundNumber(ctx, time.Now())
 		if err != nil {
-			return fmt.Errorf("round %d is in the past", flags.Round)
+			return fmt.Errorf("round numer: %w", err)
 		}
 
 		if flags.Round < lastestAvailableRound {
@@ -38,7 +38,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 
 		roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
 		if err != nil {
-			return fmt.Errorf("round by duration: %w", err)
+			return fmt.Errorf("round number: %w", err)
 		}
 
 		return tlock.Encrypt(ctx, out, in, roundNumber, flags.Armor)
