@@ -13,6 +13,25 @@ import (
 	"github.com/drand/tlock"
 )
 
+// pemType represents the block marker for PEM encoding.
+const pemType = "TLE ENCRYPTED FILE"
+
+// These constants define size values for encoding/decoding.
+const (
+	chunkSize = 64 * 1024
+
+	maxUint64Len     = 20
+	maxUint64LenVerb = "%020d"
+	maxInt64Len      = 10
+	maxInt64LenVerb  = "%010d"
+
+	kyberPointLen = 48
+	cipherVLen    = 32
+	cipherWLen    = 32
+)
+
+// =============================================================================
+
 // Encoder knows how to encode/decode cipher information.
 type Encoder struct{}
 
@@ -27,7 +46,7 @@ func (Encoder) Encode(out io.Writer, cipherInfo tlock.CipherInfo, armor bool) (e
 
 		if armor {
 			block := pem.Block{
-				Type:  "TLE ENCRYPTED FILE",
+				Type:  pemType,
 				Bytes: b.Bytes(),
 			}
 			if err = pem.Encode(out, &block); err != nil {
@@ -40,17 +59,17 @@ func (Encoder) Encode(out io.Writer, cipherInfo tlock.CipherInfo, armor bool) (e
 	}()
 
 	roundNumber := strconv.FormatUint(cipherInfo.MetaData.RoundNumber, 10)
-	fmt.Fprintf(ww, "%020d", len(roundNumber))
+	fmt.Fprintf(ww, maxUint64LenVerb, len(roundNumber))
 	fmt.Fprint(ww, roundNumber)
 
-	fmt.Fprintf(ww, "%010d", len(cipherInfo.MetaData.ChainHash))
+	fmt.Fprintf(ww, maxInt64LenVerb, len(cipherInfo.MetaData.ChainHash))
 	fmt.Fprint(ww, cipherInfo.MetaData.ChainHash)
 
 	ww.Write(cipherInfo.CipherDEK.KyberPoint)
 	ww.Write(cipherInfo.CipherDEK.CipherV)
 	ww.Write(cipherInfo.CipherDEK.CipherW)
 
-	fmt.Fprintf(ww, "%010d", len(cipherInfo.CipherData))
+	fmt.Fprintf(ww, maxInt64LenVerb, len(cipherInfo.CipherData))
 	ww.Write(cipherInfo.CipherData)
 
 	return nil
@@ -102,13 +121,14 @@ func (Encoder) Decode(in io.Reader, armor bool) (tlock.CipherInfo, error) {
 func readPEM(in io.Reader) (io.Reader, error) {
 
 	// Read the header for this PEM section.
-	hdr := make([]byte, 34)
+	const pemBegin = "-----BEGIN " + pemType + "-----\n"
+	hdr := make([]byte, len(pemBegin))
 	if _, err := io.ReadFull(in, hdr); err != nil {
 		return nil, fmt.Errorf("read header: %w", err)
 	}
 
-	// Read the next 64k bytes.
-	data := make([]byte, 64*1024)
+	// Read the next chunk of data.
+	data := make([]byte, chunkSize)
 	n, err := io.ReadFull(in, data)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		return nil, fmt.Errorf("read data: %w", err)
@@ -129,10 +149,10 @@ func readPEM(in io.Reader) (io.Reader, error) {
 			// Write that byte to the data buffer.
 			data = append(data, b[0])
 
-			// If we found the beginning of the END marker, we can read
-			// the remaining 32 bytes.
+			// If we found the beginning of the END marker.
 			if b[0] == byte('-') {
-				end := make([]byte, 32)
+				const pemEnd = "----END " + pemType + "-----\n"
+				end := make([]byte, len(pemEnd))
 				if _, err := io.ReadFull(in, end); err != nil {
 					return nil, fmt.Errorf("read end: %w", err)
 				}
@@ -165,7 +185,7 @@ func readMetaData(in io.Reader) (tlock.MetaData, error) {
 
 	// ------------------------------------------------------------
 
-	str, err := readBytes(in, 20)
+	str, err := readBytes(in, maxUint64Len)
 	if err != nil {
 		return tlock.MetaData{}, fmt.Errorf("read round string: %w", err)
 	}
@@ -187,7 +207,7 @@ func readMetaData(in io.Reader) (tlock.MetaData, error) {
 
 	// ------------------------------------------------------------
 
-	str, err = readBytes(in, 10)
+	str, err = readBytes(in, maxInt64Len)
 	if err != nil {
 		return tlock.MetaData{}, fmt.Errorf("read chain hash string: %w", err)
 	}
@@ -214,17 +234,17 @@ func readMetaData(in io.Reader) (tlock.MetaData, error) {
 
 // readCipherDEK reads the cipher dek section from the input source.
 func readCipherDEK(in io.Reader) (tlock.CipherDEK, error) {
-	kyberPoint, err := readBytes(in, 48)
+	kyberPoint, err := readBytes(in, kyberPointLen)
 	if err != nil {
 		return tlock.CipherDEK{}, fmt.Errorf("read kyber point: %w", err)
 	}
 
-	cipherV, err := readBytes(in, 32)
+	cipherV, err := readBytes(in, cipherVLen)
 	if err != nil {
 		return tlock.CipherDEK{}, fmt.Errorf("read cipher v: %w", err)
 	}
 
-	cipherW, err := readBytes(in, 32)
+	cipherW, err := readBytes(in, cipherWLen)
 	if err != nil {
 		return tlock.CipherDEK{}, fmt.Errorf("read cipher w: %w", err)
 	}
@@ -240,7 +260,7 @@ func readCipherDEK(in io.Reader) (tlock.CipherDEK, error) {
 
 // readCipherData reads the cipher data from the input source.
 func readCipherData(in io.Reader) ([]byte, error) {
-	str, err := readBytes(in, 10)
+	str, err := readBytes(in, maxInt64Len)
 	if err != nil {
 		return nil, fmt.Errorf("read cipher data string: %w", err)
 	}
