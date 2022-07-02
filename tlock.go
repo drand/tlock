@@ -99,12 +99,22 @@ func NewEncrypter(network Network, dataEncrypter DataEncrypter, encoder Encoder)
 // Encrypt will encrypt the data that is read by the reader which can only be
 // decrypted in the future specified round.
 func (t Encrypter) Encrypt(ctx context.Context, out io.Writer, in io.Reader, roundNumber uint64, armor bool) error {
-	id, err := CalculateEncryptionID(roundNumber)
+	id, err := calculateEncryptionID(roundNumber)
 	if err != nil {
 		return fmt.Errorf("round by number: %w", err)
 	}
 
 	return encrypt(ctx, out, in, t.encoder, t.network, t.dataEncrypter, roundNumber, id, armor)
+}
+
+// calculateEncryptionID will generate the id required for encryption.
+func calculateEncryptionID(roundNumber uint64) ([]byte, error) {
+	h := sha256.New()
+	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
+		return nil, fmt.Errorf("sha256 write: %w", err)
+	}
+
+	return h.Sum(nil), nil
 }
 
 // encrypt constructs a data encryption key that is encrypted with the time
@@ -301,16 +311,4 @@ func decryptDEK(ctx context.Context, cipherDEK CipherDEK, network Network, round
 	}
 
 	return plainDEK, nil
-}
-
-// =============================================================================
-
-// CalculateEncryptionID will generate the id required for encryption.
-func CalculateEncryptionID(roundNumber uint64) ([]byte, error) {
-	h := sha256.New()
-	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
-		return nil, fmt.Errorf("sha256 write: %w", err)
-	}
-
-	return h.Sum(nil), nil
 }
