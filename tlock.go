@@ -55,8 +55,7 @@ type Network interface {
 	ChainHash() string
 	PublicKey(ctx context.Context) (kyber.Point, error)
 	IsReadyToDecrypt(ctx context.Context, roundNumber uint64) (id []byte, ready bool)
-	RoundNumber(ctx context.Context, t time.Time) (uint64, error)
-	EncryptionRoundAndID(ctx context.Context, duration time.Duration) (roundNumber uint64, id []byte, err error)
+	RoundNumberByTime(ctx context.Context, t time.Time) (uint64, error)
 }
 
 // Decoder knows how to decode CipherInfo from the specified source.
@@ -69,44 +68,49 @@ type Encoder interface {
 	Encode(out io.Writer, cipherInfo CipherInfo, armor bool) error
 }
 
-// Encrypter encrypts plain data with the specified key.
-type Encrypter interface {
+// DataEncrypter encrypts plain data with the specified key.
+type DataEncrypter interface {
 	Encrypt(key []byte, plainData []byte) (cipherData []byte, err error)
 }
 
-// Decrypter decrypts cipher data with the specified key.
-type Decrypter interface {
+// DataDecrypter decrypts cipher data with the specified key.
+type DataDecrypter interface {
 	Decrypt(key []byte, cipherData []byte) (plainData []byte, err error)
 }
 
 // =============================================================================
 
-// EncryptWithRound will encrypt the data that is read by the reader which can
-// only be decrypted in the future specified round.
-func EncryptWithRound(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, roundNumber uint64, armor bool) error {
+// Encrypter provides an API for time lock encryption.
+type Encrypter struct {
+	network       Network
+	dataEncrypter DataEncrypter
+	encoder       Encoder
+}
+
+// New constructs a Tlock for use with the specified network, encrypter, and encoder.
+func NewEncrypter(network Network, dataEncrypter DataEncrypter, encoder Encoder) Encrypter {
+	return Encrypter{
+		network:       network,
+		dataEncrypter: dataEncrypter,
+		encoder:       encoder,
+	}
+}
+
+// Encrypt will encrypt the data that is read by the reader which can only be
+// decrypted in the future specified round.
+func (t Encrypter) Encrypt(ctx context.Context, out io.Writer, in io.Reader, roundNumber uint64, armor bool) error {
 	id, err := CalculateEncryptionID(roundNumber)
 	if err != nil {
 		return fmt.Errorf("round by number: %w", err)
 	}
 
-	return encrypt(ctx, out, in, encoder, network, encrypter, roundNumber, id, armor)
-}
-
-// EncryptWithDuration will encrypt the data that is read by the reader which can
-// only be decrypted in the future specified duration.
-func EncryptWithDuration(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, duration time.Duration, armor bool) error {
-	roundNumber, id, err := network.EncryptionRoundAndID(ctx, duration)
-	if err != nil {
-		return fmt.Errorf("round by duration: %w", err)
-	}
-
-	return encrypt(ctx, out, in, encoder, network, encrypter, roundNumber, id, armor)
+	return encrypt(ctx, out, in, t.encoder, t.network, t.dataEncrypter, roundNumber, id, armor)
 }
 
 // encrypt constructs a data encryption key that is encrypted with the time
 // lock encryption for the specifed round. Then the input source is encrypted
 // and encoded to the output destination in 64k byte chunks.
-func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, encrypter Encrypter, roundNumber uint64, id []byte, armor bool) error {
+func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, dataEncrypter DataEncrypter, roundNumber uint64, id []byte, armor bool) error {
 
 	// Create the DEK for this encryption.
 	const fileKeySize int = 32
@@ -172,7 +176,7 @@ func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, 
 		}
 
 		// Encrypt the chunk of data.
-		cipherInfo.CipherData, err = encrypter.Encrypt(dek, data[:n])
+		cipherInfo.CipherData, err = dataEncrypter.Encrypt(dek, data[:n])
 		if err != nil {
 			return fmt.Errorf("encrypt data: %w", err)
 		}
@@ -186,11 +190,27 @@ func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, 
 
 // =============================================================================
 
+// Decrypter provides an API for time lock decryption.
+type Decrypter struct {
+	network       Network
+	dataDecrypter DataDecrypter
+	decoder       Decoder
+}
+
+// New constructs a Tlock for use with the specified network, decrypter, and decoder.
+func NewDecrypter(network Network, dataDecrypter DataDecrypter, decoder Decoder) Decrypter {
+	return Decrypter{
+		network:       network,
+		dataDecrypter: dataDecrypter,
+		decoder:       decoder,
+	}
+}
+
 // Decrypt decode the input source for a CipherData value. For each CipherData
 // value that is decoded, the DEK is decrypted with time lock decryption so
 // the cipher data can then be decrypted with that key and written to the
 // specified output destination.
-func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, network Network, decrypter Decrypter, armor bool) error {
+func (t Decrypter) Decrypt(ctx context.Context, out io.Writer, in io.Reader, armor bool) error {
 	var done bool
 
 	for {
@@ -199,7 +219,7 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 		}
 
 		// Read and decode the next cipherInfo that exists in the input source.
-		info, err := decoder.Decode(in, armor)
+		info, err := t.decoder.Decode(in, armor)
 
 		// io.EOF:              There were no bytes left to read.
 		// io.ErrUnexpectedEOF: We read the last remaining bytes from the input source.
@@ -216,13 +236,13 @@ func Decrypt(ctx context.Context, out io.Writer, in io.Reader, decoder Decoder, 
 		}
 
 		// Decrypt the dek using time lock decryption.
-		plainDEK, err := decryptDEK(ctx, info.CipherDEK, network, info.MetaData.RoundNumber)
+		plainDEK, err := decryptDEK(ctx, info.CipherDEK, t.network, info.MetaData.RoundNumber)
 		if err != nil {
 			return fmt.Errorf("decrypt dek: %w", err)
 		}
 
 		// Decrypt the chunk of data returned with the cipherInfo.
-		plainData, err := decrypter.Decrypt(plainDEK, info.CipherData)
+		plainData, err := t.dataDecrypter.Decrypt(plainDEK, info.CipherData)
 		if err != nil {
 			return fmt.Errorf("decrypt data: %w", err)
 		}

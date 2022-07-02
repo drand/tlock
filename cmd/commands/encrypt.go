@@ -14,10 +14,12 @@ import (
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
 // drand network, and an encrypter for encrypting/decrypting the data.
-func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, encoder tlock.Encoder, network tlock.Network, encrypter tlock.Encrypter) error {
+func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, encoder tlock.Encoder, network tlock.Network, dataEncrypter tlock.DataEncrypter) error {
+	tlock := tlock.NewEncrypter(network, dataEncrypter, encoder)
+
 	switch {
 	case flags.Round != 0:
-		lastestAvailableRound, err := network.RoundNumber(ctx, time.Now())
+		lastestAvailableRound, err := network.RoundNumberByTime(ctx, time.Now())
 		if err != nil {
 			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
@@ -26,7 +28,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
 
-		return tlock.EncryptWithRound(ctx, out, in, encoder, network, encrypter, flags.Round, flags.Armor)
+		return tlock.Encrypt(ctx, out, in, flags.Round, flags.Armor)
 
 	case flags.Duration != "":
 		duration, err := parseDuration(flags.Duration)
@@ -34,7 +36,12 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, enco
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		return tlock.EncryptWithDuration(ctx, out, in, encoder, network, encrypter, duration, flags.Armor)
+		roundNumber, err := network.RoundNumberByTime(ctx, time.Now().Add(duration))
+		if err != nil {
+			return fmt.Errorf("round by duration: %w", err)
+		}
+
+		return tlock.Encrypt(ctx, out, in, roundNumber, flags.Armor)
 	}
 
 	return nil

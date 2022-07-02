@@ -9,13 +9,13 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-// Encrypter represents the encrypting/decrypting of data using the
+// DataEncrypter represents the encrypting/decrypting of data using the
 // chacha20poly1305 algorithm.
-type Encrypter struct{}
+type DataEncrypter struct{}
 
 // Encrypt will encrypt the plain data using the specified key with the
 // chacha20poly1305 algorithm.
-func (Encrypter) Encrypt(key []byte, plainData []byte) ([]byte, error) {
+func (DataEncrypter) Encrypt(key []byte, plainData []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func (Encrypter) Encrypt(key []byte, plainData []byte) ([]byte, error) {
 // Decrypt will decrypt the cipher data using the specified key with the
 // chacha20poly1305 algorithm. Having a null nonce is fine beause we're
 // generating a new random key for each encryption.
-func (Encrypter) Decrypt(key []byte, cipherData []byte) ([]byte, error) {
+func (DataEncrypter) Decrypt(key []byte, cipherData []byte) ([]byte, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err

@@ -12,7 +12,6 @@ import (
 	"github.com/drand/drand/client"
 	dhttp "github.com/drand/drand/client/http"
 	"github.com/drand/kyber"
-	"github.com/drand/tlock"
 )
 
 // Network represents the network support using the drand http client.
@@ -78,9 +77,10 @@ func (n *Network) IsReadyToDecrypt(ctx context.Context, roundNumber uint64) ([]b
 	return result.Signature(), true
 }
 
-// RoundNumber will return the latest round of randomness that is available for
-// the specified time.
-func (n *Network) RoundNumber(ctx context.Context, t time.Time) (uint64, error) {
+// RoundNumberByTime will return the latest round of randomness that is available
+// for the specified time. To handle a duration construct time like this:
+// time.Now().Add(6*time.Second)
+func (n *Network) RoundNumberByTime(ctx context.Context, t time.Time) (uint64, error) {
 	client, err := n.client(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("client: %w", err)
@@ -88,26 +88,6 @@ func (n *Network) RoundNumber(ctx context.Context, t time.Time) (uint64, error) 
 
 	roundNumber := client.RoundAt(t)
 	return roundNumber, nil
-}
-
-// EncryptionRoundAndID will generate the round information based on the specified duration.
-func (n *Network) EncryptionRoundAndID(ctx context.Context, duration time.Duration) (uint64, []byte, error) {
-	client, err := n.client(ctx)
-	if err != nil {
-		return 0, nil, fmt.Errorf("client: %w", err)
-	}
-
-	roundNumber := client.RoundAt(time.Now().Add(duration))
-	if err != nil {
-		return 0, nil, fmt.Errorf("client: %w", err)
-	}
-
-	id, err := tlock.CalculateEncryptionID(roundNumber)
-	if err != nil {
-		return 0, nil, fmt.Errorf("id: %w", err)
-	}
-
-	return roundNumber, id, nil
 }
 
 // =============================================================================
