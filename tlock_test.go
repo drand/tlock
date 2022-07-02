@@ -26,8 +26,6 @@ const (
 )
 
 func Test_EarlyDecryptionWithDuration(t *testing.T) {
-	var encoder base.Encoder
-	var encrypter aead.DataEncrypter
 	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
@@ -47,7 +45,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	// Enough duration to check for an non-existing beacon.
 	duration := 10 * time.Second
 
-	tl := tlock.NewEncrypter(network, encrypter, encoder)
+	tl := tlock.NewEncrypter(network, aead.DataEncrypter{}, base.Encoder{})
 
 	roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
 	if err != nil {
@@ -66,7 +64,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	var plainData bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = tlock.NewDecrypter(network, encrypter, encoder).Decrypt(ctx, &plainData, &cipherData, false)
+	err = tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, &plainData, &cipherData, false)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
@@ -77,8 +75,6 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 }
 
 func Test_EarlyDecryptionWithRound(t *testing.T) {
-	var encoder base.Encoder
-	var encrypter aead.DataEncrypter
 	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
@@ -100,7 +96,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	tl := tlock.NewEncrypter(network, encrypter, encoder)
+	tl := tlock.NewEncrypter(network, aead.DataEncrypter{}, base.Encoder{})
 
 	err = tl.Encrypt(context.Background(), &cipherData, in, futureRound, false)
 	if err != nil {
@@ -114,7 +110,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	var plainData bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = tlock.NewDecrypter(network, encrypter, encoder).Decrypt(ctx, &plainData, &cipherData, false)
+	err = tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, &plainData, &cipherData, false)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
@@ -129,8 +125,6 @@ func Test_EncryptionWithDuration(t *testing.T) {
 		t.Skip("skipping testing in short mode")
 	}
 
-	var encoder base.Encoder
-	var encrypter aead.DataEncrypter
 	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
@@ -150,7 +144,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	// Enough duration to check for an non-existing beacon.
 	duration := 4 * time.Second
 
-	tl := tlock.NewEncrypter(network, encrypter, encoder)
+	tl := tlock.NewEncrypter(network, aead.DataEncrypter{}, base.Encoder{})
 
 	roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
 	if err != nil {
@@ -170,7 +164,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	// Write the decoded information to this buffer.
 	var plainData bytes.Buffer
 
-	err = tlock.NewDecrypter(network, encrypter, encoder).Decrypt(ctx, &plainData, &cipherData, false)
+	err = tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, &plainData, &cipherData, false)
 	if err != nil {
 		t.Fatalf("unexpected error %s", err)
 	}
@@ -185,8 +179,6 @@ func Test_EncryptionWithRound(t *testing.T) {
 		t.Skip("skipping testing in short mode")
 	}
 
-	var encoder base.Encoder
-	var encrypter aead.DataEncrypter
 	network := http.NewNetwork(testnetHost, testnetChainHash)
 	ctx := context.Background()
 
@@ -208,7 +200,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 		t.Fatalf("client: %s", err)
 	}
 
-	err = tlock.NewEncrypter(network, encrypter, encoder).Encrypt(ctx, &cipherData, in, futureRound, false)
+	err = tlock.NewEncrypter(network, aead.DataEncrypter{}, base.Encoder{}).Encrypt(ctx, &cipherData, in, futureRound, false)
 	if err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
@@ -221,7 +213,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Wait for the future beacon to exist.
 	time.Sleep(10 * time.Second)
 
-	err = tlock.NewDecrypter(network, encrypter, encoder).Decrypt(ctx, &plainData, &cipherData, false)
+	err = tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, &plainData, &cipherData, false)
 	if err != nil {
 		t.Fatalf("unexpected error %s", err)
 	}

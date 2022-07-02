@@ -55,18 +55,15 @@ func run(log *log.Logger) error {
 		out = f
 	}
 
-	// These represent the default encoder, encrypter, and network.
-	var encoder base.Encoder
-	var dataEncrypter aead.DataEncrypter
-	network := http.NewNetwork(flags.Network, flags.Chain)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	network := http.NewNetwork(flags.Network, flags.Chain)
+
 	switch {
 	case flags.Decrypt:
-		return tlock.NewDecrypter(network, dataEncrypter, encoder).Decrypt(ctx, out, in, flags.Armor)
+		return tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, out, in, flags.Armor)
 	default:
-		return commands.Encrypt(ctx, flags, out, in, encoder, network, dataEncrypter)
+		return commands.Encrypt(ctx, flags, out, in, network, aead.DataEncrypter{}, base.Encoder{})
 	}
 }

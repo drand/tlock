@@ -32,7 +32,7 @@ const (
 
 // =============================================================================
 
-// Encoder knows how to encode/decode cipher information.
+// Encoder knows how to encode cipher information.
 type Encoder struct{}
 
 // Encode writes the cipher info to the output destination. If armor is true,
@@ -75,10 +75,13 @@ func (Encoder) Encode(out io.Writer, cipherInfo tlock.CipherInfo, armor bool) (e
 	return nil
 }
 
+// Decoder knows how to decode cipher information.
+type Decoder struct{}
+
 // Decode reads input source for the cipherInfo. If an io.EOF is returned, there
 // is no more cipherInfo to decode. If io.ErrUnexpectedEOF is returned, the last
 // cipherInfo has been decoded from the source.
-func (Encoder) Decode(in io.Reader, armor bool) (tlock.CipherInfo, error) {
+func (Decoder) Decode(in io.Reader, armor bool) (tlock.CipherInfo, error) {
 	if armor {
 		var err error
 		in, err = readPEM(in)

@@ -14,7 +14,7 @@ import (
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
 // drand network, and an encrypter for encrypting/decrypting the data.
-func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, encoder tlock.Encoder, network tlock.Network, dataEncrypter tlock.DataEncrypter) error {
+func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, network tlock.Network, dataEncrypter tlock.DataEncrypter, encoder tlock.Encoder) error {
 	tlock := tlock.NewEncrypter(network, dataEncrypter, encoder)
 
 	switch {
