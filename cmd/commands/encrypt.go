@@ -1,21 +1,20 @@
 package commands
 
 import (
-	"context"
-	"filippo.io/age/armor"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"time"
 
+	"filippo.io/age/armor"
 	"github.com/drand/tlock"
 )
 
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
 // drand network, and an encrypter for encrypting/decrypting the data.
-func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, network tlock.Network) error {
+func Encrypt(flags Flags, out io.Writer, in io.Reader, network tlock.Network) error {
 	tlock := tlock.NewEncrypter(network)
 
 	if flags.Armor {
@@ -30,7 +29,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, netw
 
 	switch {
 	case flags.Round != 0:
-		lastestAvailableRound, err := network.RoundNumber(ctx, time.Now())
+		lastestAvailableRound, err := network.RoundNumber(time.Now())
 		if err != nil {
 			return fmt.Errorf("round numer: %w", err)
 		}
@@ -47,7 +46,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, netw
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
+		roundNumber, err := network.RoundNumber(time.Now().Add(duration))
 		if err != nil {
 			return fmt.Errorf("round number: %w", err)
 		}

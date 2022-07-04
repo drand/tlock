@@ -2,7 +2,6 @@ package tlock_test
 
 import (
 	"bytes"
-	"context"
 	_ "embed" // Calls init function.
 	"errors"
 	"os"
@@ -25,7 +24,6 @@ const (
 
 func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	network := http.NewNetwork(testnetHost, testnetChainHash)
-	ctx := context.Background()
 
 	// =========================================================================
 	// Encrypt
@@ -45,7 +43,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 
 	tl := tlock.NewEncrypter(network)
 
-	roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
+	roundNumber, err := network.RoundNumber(time.Now().Add(duration))
 	if err != nil {
 		t.Fatalf("round by duration: %s", err)
 	}
@@ -74,7 +72,6 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 
 func Test_EarlyDecryptionWithRound(t *testing.T) {
 	network := http.NewNetwork(testnetHost, testnetChainHash)
-	ctx := context.Background()
 
 	// =========================================================================
 	// Encrypt
@@ -86,7 +83,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	}
 	defer in.Close()
 
-	futureRound, err := network.RoundNumber(ctx, time.Now().Add(1*time.Minute))
+	futureRound, err := network.RoundNumber(time.Now().Add(1 * time.Minute))
 	if err != nil {
 		t.Fatalf("client: %s", err)
 	}
@@ -124,7 +121,6 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	}
 
 	network := http.NewNetwork(testnetHost, testnetChainHash)
-	ctx := context.Background()
 
 	// =========================================================================
 	// Encrypt
@@ -144,7 +140,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 
 	tl := tlock.NewEncrypter(network)
 
-	roundNumber, err := network.RoundNumber(ctx, time.Now().Add(duration))
+	roundNumber, err := network.RoundNumber(time.Now().Add(duration))
 	if err != nil {
 		t.Fatalf("round by duration: %s", err)
 	}
@@ -178,7 +174,6 @@ func Test_EncryptionWithRound(t *testing.T) {
 	}
 
 	network := http.NewNetwork(testnetHost, testnetChainHash)
-	ctx := context.Background()
 
 	// =========================================================================
 	// Encrypt
@@ -193,7 +188,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	futureRound, err := network.RoundNumber(ctx, time.Now().Add(6*time.Second))
+	futureRound, err := network.RoundNumber(time.Now().Add(6 * time.Second))
 	if err != nil {
 		t.Fatalf("client: %s", err)
 	}

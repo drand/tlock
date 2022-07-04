@@ -1,13 +1,11 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"time"
 
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/cmd/commands"
@@ -53,15 +51,12 @@ func run(log *log.Logger) error {
 		out = f
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	network := http.NewNetwork(flags.Network, flags.Chain)
 
 	switch {
 	case flags.Decrypt:
 		return tlock.NewDecrypter(network).Decrypt(out, in)
 	default:
-		return commands.Encrypt(ctx, flags, out, in, network)
+		return commands.Encrypt(flags, out, in, network)
 	}
 }

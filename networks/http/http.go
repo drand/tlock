@@ -14,6 +14,11 @@ import (
 	"github.com/drand/kyber"
 )
 
+// timeout represents the maximum amount of time to wait for network operations.
+const timeout = 5 * time.Second
+
+// =============================================================================
+
 // Network represents the network support using the drand http client.
 type Network struct {
 	host      string
@@ -41,15 +46,18 @@ func (n *Network) ChainHash() string {
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.
-func (n *Network) PublicKey(ctx context.Context) (kyber.Point, error) {
+func (n *Network) PublicKey() (kyber.Point, error) {
 	if n.publicKey != nil {
 		return n.publicKey, nil
 	}
 
-	client, err := n.client(ctx)
+	client, err := n.client()
 	if err != nil {
 		return nil, err
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	chain, err := client.Info(ctx)
 	if err != nil {
@@ -63,11 +71,14 @@ func (n *Network) PublicKey(ctx context.Context) (kyber.Point, error) {
 
 // IsReadyToDecrypt makes a call to the network to validate it's time to decrypt
 // and if so, the required id is returned.
-func (n *Network) IsReadyToDecrypt(ctx context.Context, roundNumber uint64) ([]byte, bool) {
-	client, err := n.client(ctx)
+func (n *Network) IsReadyToDecrypt(roundNumber uint64) ([]byte, bool) {
+	client, err := n.client()
 	if err != nil {
 		return nil, false
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	result, err := client.Get(ctx, roundNumber)
 	if err != nil {
@@ -80,8 +91,8 @@ func (n *Network) IsReadyToDecrypt(ctx context.Context, roundNumber uint64) ([]b
 // RoundNumber will return the latest round of randomness that is available
 // for the specified time. To handle a duration construct time like this:
 // time.Now().Add(6*time.Second)
-func (n *Network) RoundNumber(ctx context.Context, t time.Time) (uint64, error) {
-	client, err := n.client(ctx)
+func (n *Network) RoundNumber(t time.Time) (uint64, error) {
+	client, err := n.client()
 	if err != nil {
 		return 0, fmt.Errorf("client: %w", err)
 	}
@@ -93,7 +104,7 @@ func (n *Network) RoundNumber(ctx context.Context, t time.Time) (uint64, error) 
 // =============================================================================
 
 // client returns an HTTP client used to talk to the network.
-func (n *Network) client(ctx context.Context) (client.Client, error) {
+func (n *Network) client() (client.Client, error) {
 	if n.c != nil {
 		return n.c, nil
 	}
@@ -117,7 +128,7 @@ func transport() *http.Transport {
 	return &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
+			Timeout:   timeout,
 			KeepAlive: 5 * time.Second,
 		}).DialContext,
 		ForceAttemptHTTP2:     true,
