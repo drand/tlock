@@ -12,9 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	"filippo.io/age/armor"
-
 	"filippo.io/age"
+	"filippo.io/age/armor"
 	"github.com/drand/drand/chain"
 	"github.com/drand/drand/common/scheme"
 	"github.com/drand/kyber"
