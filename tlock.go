@@ -25,6 +25,7 @@ import (
 // ErrTooEarly represents an error when a decryption operation happens early.
 var ErrTooEarly = errors.New("too early to decrypt")
 
+// These constants define the size of the different CipherDEK fields.
 const (
 	kyberPointLen = 48
 	cipherVLen    = 16
@@ -65,26 +66,6 @@ type Network interface {
 	PublicKey() (kyber.Point, error)
 	IsReadyToDecrypt(roundNumber uint64) (id []byte, ready bool)
 	RoundNumber(t time.Time) (uint64, error)
-}
-
-// Decoder knows how to decode CipherInfo from the specified source.
-type Decoder interface {
-	Decode(in io.Reader, armor bool) (CipherInfo, error)
-}
-
-// Encoder knows how to encode CipherInfo to the specified destination.
-type Encoder interface {
-	Encode(out io.Writer, cipherInfo CipherInfo, armor bool) error
-}
-
-// DataEncrypter encrypts plain data with the specified key.
-type DataEncrypter interface {
-	Encrypt(key []byte, plainData []byte) (cipherData []byte, err error)
-}
-
-// DataDecrypter decrypts cipher data with the specified key.
-type DataDecrypter interface {
-	Decrypt(key []byte, cipherData []byte) (plainData []byte, err error)
 }
 
 // =============================================================================
