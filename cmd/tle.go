@@ -62,7 +62,7 @@ func run(log *log.Logger) error {
 
 	switch {
 	case flags.Decrypt:
-		return tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, out, in, flags.Armor)
+		return tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, out, in)
 	default:
 		return commands.Encrypt(ctx, flags, out, in, network, aead.DataEncrypter{}, base.Encoder{})
 	}

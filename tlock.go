@@ -4,10 +4,12 @@
 package tlock
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
+	"filippo.io/age/armor"
 	"fmt"
 	"io"
 	"strconv"
@@ -161,7 +163,8 @@ func (t *TLERecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 		return nil, fmt.Errorf("marshal kyber point: %w", err)
 	}
 
-	cipher := append(kyberPoint, cipherText.V...)
+	cipher := append([]byte{}, kyberPoint...)
+	cipher = append(cipher, cipherText.V...)
 	cipher = append(cipher, cipherText.W...)
 	l.Body = cipher
 
@@ -201,11 +204,15 @@ func (t *TLEIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 
 	cipherDEK, err := readCipherDEK(bytes.NewReader(block.Body))
 	if err != nil {
+		fmt.Println(err)
 		return nil, fmt.Errorf("%w: unable to read tlock block: %v", age.ErrIncorrectIdentity, err)
 	}
 
 	plainDEK, err := decryptDEK(context.Background(), cipherDEK, t.network, blockRound)
 	if err != nil {
+		if errors.Is(err, ErrTooEarly) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: error while decrypting filekey: %v", age.ErrIncorrectIdentity, err)
 	}
 
@@ -214,24 +221,29 @@ func (t *TLEIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 
 const (
 	kyberPointLen = 48
-	cipherVLen    = 32
-	cipherWLen    = 32
+	cipherVLen    = 16
+	cipherWLen    = 16
 )
 
 func readCipherDEK(in io.Reader) (CipherDEK, error) {
-	kyberPoint, err := readBytes(in, kyberPointLen)
-	if err != nil {
+
+	kyberPoint := make([]byte, kyberPointLen)
+	cipherV := make([]byte, cipherVLen)
+	cipherW := make([]byte, cipherVLen)
+
+	n, err := in.Read(kyberPoint)
+	if n != kyberPointLen || err != nil {
 		return CipherDEK{}, fmt.Errorf("read kyber point: %w", err)
 	}
 
-	cipherV, err := readBytes(in, cipherVLen)
-	if err != nil {
+	n, err = in.Read(cipherV)
+	if n != cipherVLen || err != nil {
 		return CipherDEK{}, fmt.Errorf("read cipher v: %w", err)
 	}
 
-	cipherW, err := readBytes(in, cipherWLen)
-	if err != nil {
-		return CipherDEK{}, fmt.Errorf("read cipher w: %w", err)
+	n, err = in.Read(cipherW)
+	if n != cipherWLen || err != nil {
+		return CipherDEK{}, fmt.Errorf("read cipher w: %w, %v", err, n)
 	}
 
 	cd := CipherDEK{
@@ -241,25 +253,6 @@ func readCipherDEK(in io.Reader) (CipherDEK, error) {
 	}
 
 	return cd, nil
-}
-
-// readBytes reads the specified number of bytes from the reader.
-func readBytes(in io.Reader, length int) ([]byte, error) {
-	data := make([]byte, length)
-	n, err := io.ReadFull(in, data)
-
-	switch {
-	case err == io.EOF:
-		return []byte{}, io.EOF
-
-	case err == io.ErrUnexpectedEOF:
-		return data[:n], io.ErrUnexpectedEOF
-
-	case err != nil:
-		return []byte{}, err
-	}
-
-	return data[:n], nil
 }
 
 // =============================================================================
@@ -284,7 +277,15 @@ func NewDecrypter(network Network, dataDecrypter DataDecrypter, decoder Decoder)
 // value that is decoded, the DEK is decrypted with time lock decryption so
 // the cipher data can then be decrypted with that key and written to the
 // specified output destination.
-func (t Decrypter) Decrypt(ctx context.Context, out io.Writer, in io.Reader, armor bool) error {
+func (t Decrypter) Decrypt(ctx context.Context, out io.Writer, in io.Reader) error {
+	rr := bufio.NewReader(in)
+
+	if start, _ := rr.Peek(len(armor.Header)); string(start) == armor.Header {
+		in = armor.NewReader(rr)
+	} else {
+		in = rr
+	}
+
 	plainReader, err := age.Decrypt(in, &TLEIdentity{network: t.network})
 	if err != nil {
 		return fmt.Errorf("%w: unable to decrypt", err)
