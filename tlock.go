@@ -97,12 +97,12 @@ func (t Decrypter) Decrypt(dst io.Writer, src io.Reader) error {
 		src = rr
 	}
 
-	plainReader, err := age.Decrypt(src, &tleIdentity{network: t.network})
+	r, err := age.Decrypt(src, &tleIdentity{network: t.network})
 	if err != nil {
 		return fmt.Errorf("age decrypt: %w", err)
 	}
 
-	if _, err := io.Copy(dst, plainReader); err != nil {
+	if _, err := io.Copy(dst, r); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
 
