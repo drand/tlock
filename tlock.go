@@ -100,11 +100,7 @@ func NewEncrypter(network Network, dataEncrypter DataEncrypter, encoder Encoder)
 
 // Encrypt will encrypt the data that is read by the reader which can only be
 // decrypted in the future specified round.
-func (t Encrypter) Encrypt(ctx context.Context, out io.Writer, in io.Reader, roundNumber uint64, armor bool) error {
-	if armor {
-		// TODO
-		fmt.Println("Not implemented yet")
-	}
+func (t Encrypter) Encrypt(ctx context.Context, out io.Writer, in io.Reader, roundNumber uint64) error {
 	w, err := age.Encrypt(out, &TLERecipient{network: t.network, round: roundNumber})
 	if err != nil {
 		return fmt.Errorf("%v", err)

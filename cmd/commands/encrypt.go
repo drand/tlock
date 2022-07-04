@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"filippo.io/age/armor"
 	"fmt"
 	"io"
 	"strconv"
@@ -17,6 +18,16 @@ import (
 func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, network tlock.Network, dataEncrypter tlock.DataEncrypter, encoder tlock.Encoder) error {
 	tlock := tlock.NewEncrypter(network, dataEncrypter, encoder)
 
+	if flags.Armor {
+		a := armor.NewWriter(out)
+		defer func() {
+			if err := a.Close(); err != nil {
+				fmt.Printf("Error while closing: %v", err)
+			}
+		}()
+		out = a
+	}
+
 	switch {
 	case flags.Round != 0:
 		lastestAvailableRound, err := network.RoundNumber(ctx, time.Now())
@@ -28,7 +39,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, netw
 			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
 
-		return tlock.Encrypt(ctx, out, in, flags.Round, flags.Armor)
+		return tlock.Encrypt(ctx, out, in, flags.Round)
 
 	case flags.Duration != "":
 		duration, err := parseDuration(flags.Duration)
@@ -41,7 +52,7 @@ func Encrypt(ctx context.Context, flags Flags, out io.Writer, in io.Reader, netw
 			return fmt.Errorf("round number: %w", err)
 		}
 
-		return tlock.Encrypt(ctx, out, in, roundNumber, flags.Armor)
+		return tlock.Encrypt(ctx, out, in, roundNumber)
 	}
 
 	return nil
