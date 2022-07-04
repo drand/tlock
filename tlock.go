@@ -60,7 +60,7 @@ func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) err
 	}
 
 	if _, err := io.Copy(w, src); err != nil {
-		return fmt.Errorf("read: %w", err)
+		return fmt.Errorf("write: %w", err)
 	}
 
 	if err := w.Close(); err != nil {
