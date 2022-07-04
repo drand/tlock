@@ -4,14 +4,16 @@
 package tlock
 
 import (
+	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 
+	"filippo.io/age"
 	"github.com/drand/drand/chain"
 	"github.com/drand/drand/common/scheme"
 	"github.com/drand/kyber"
@@ -99,12 +101,22 @@ func NewEncrypter(network Network, dataEncrypter DataEncrypter, encoder Encoder)
 // Encrypt will encrypt the data that is read by the reader which can only be
 // decrypted in the future specified round.
 func (t Encrypter) Encrypt(ctx context.Context, out io.Writer, in io.Reader, roundNumber uint64, armor bool) error {
-	id, err := calculateEncryptionID(roundNumber)
+	if armor {
+		// TODO
+		fmt.Println("Not implemented yet")
+	}
+	w, err := age.Encrypt(out, &TLERecipient{network: t.network, round: roundNumber})
 	if err != nil {
-		return fmt.Errorf("round by number: %w", err)
+		return fmt.Errorf("%v", err)
+	}
+	if _, err := io.Copy(w, in); err != nil {
+		return fmt.Errorf("%v", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("%v", err)
 	}
 
-	return encrypt(ctx, out, in, t.encoder, t.network, t.dataEncrypter, roundNumber, id, armor)
+	return nil
 }
 
 // calculateEncryptionID will generate the id required for encryption.
@@ -117,85 +129,141 @@ func calculateEncryptionID(roundNumber uint64) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-// encrypt constructs a data encryption key that is encrypted with the time
-// lock encryption for the specifed round. Then the input source is encrypted
-// and encoded to the output destination in 64k byte chunks.
-func encrypt(ctx context.Context, out io.Writer, in io.Reader, encoder Encoder, network Network, dataEncrypter DataEncrypter, roundNumber uint64, id []byte, armor bool) error {
+type TLERecipient struct {
+	round   uint64
+	network Network
+}
 
-	// Create the DEK for this encryption.
-	const fileKeySize int = 32
-	dek := make([]byte, fileKeySize)
-	if _, err := rand.Read(dek); err != nil {
-		return fmt.Errorf("random key: %w", err)
+var _ age.Recipient = &TLERecipient{}
+
+func (t *TLERecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
+	l := &age.Stanza{
+		Type: "tlock",
+		Args: []string{strconv.FormatUint(t.round, 10), t.network.ChainHash()},
 	}
-	publicKey, err := network.PublicKey(ctx)
+
+	id, err := calculateEncryptionID(t.round)
 	if err != nil {
-		return fmt.Errorf("public key: %w", err)
+		return nil, fmt.Errorf("round by number: %w", err)
+	}
+
+	publicKey, err := t.network.PublicKey(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("public key: %w", err)
 	}
 
 	// Encrypt the DEK using time lock encryption.
-	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, dek)
+	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, fileKey)
 	if err != nil {
-		return fmt.Errorf("encrypt dek: %w", err)
+		return nil, fmt.Errorf("encrypt dek: %w", err)
 	}
 
 	// Construct the cipher information that will be written to
 	// the ouput destination.
 	kyberPoint, err := cipherText.U.MarshalBinary()
 	if err != nil {
-		return fmt.Errorf("marshal kyber point: %w", err)
-	}
-	cipherInfo := CipherInfo{
-		MetaData: MetaData{
-			RoundNumber: roundNumber,
-			ChainHash:   network.ChainHash(),
-		},
-		CipherDEK: CipherDEK{
-			KyberPoint: kyberPoint,
-			CipherV:    cipherText.V,
-			CipherW:    cipherText.W,
-		},
+		return nil, fmt.Errorf("marshal kyber point: %w", err)
 	}
 
-	// Encrypt the source data in 64k byte chunks, encoding the MetaData and
-	// CipherDEK with each unique chunk of encrypted data that is written.
+	cipher := append(kyberPoint, cipherText.V...)
+	cipher = append(cipher, cipherText.W...)
+	l.Body = cipher
 
-	var done bool
-	var data [1024 * 64]byte
+	return []*age.Stanza{l}, nil
+}
 
-	for {
-		if done {
-			return nil
-		}
+type TLEIdentity struct {
+	network Network
+}
 
-		// Read in a 64k chunk of data from the input source.
-		n, err := io.ReadFull(in, data[:])
+var _ age.Identity = &TLEIdentity{}
 
-		// io.EOF:              There were no bytes left to read.
-		// io.ErrUnexpectedEOF: We read the last remaining bytes from the input source.
-		// err != nil           There is a problem with the encoding.
-		switch {
-		case errors.Is(err, io.EOF):
-			return nil
-
-		case errors.Is(err, io.ErrUnexpectedEOF):
-			done = true
-
-		case err != nil:
-			return fmt.Errorf("decoding input data: %w", err)
-		}
-
-		// Encrypt the chunk of data.
-		cipherInfo.CipherData, err = dataEncrypter.Encrypt(dek, data[:n])
-		if err != nil {
-			return fmt.Errorf("encrypt data: %w", err)
-		}
-
-		// Encode this chunk of data to the output destination.
-		if err := encoder.Encode(out, cipherInfo, armor); err != nil {
-			return fmt.Errorf("encode: %w", err)
+func (t *TLEIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	for _, s := range stanzas {
+		if s.Type == "tlock" && len(stanzas) != 1 {
+			return nil, errors.New("a tlock recipient must be the only one")
 		}
 	}
+
+	block := stanzas[0]
+
+	if block.Type != "tlock" {
+		return nil, fmt.Errorf("%w: not a tlock recipient block", age.ErrIncorrectIdentity)
+	}
+	if len(block.Args) != 2 {
+		return nil, fmt.Errorf("%w: invalid tlock recipient block", age.ErrIncorrectIdentity)
+	}
+
+	blockRound, err := strconv.ParseUint(block.Args[0], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid block round", age.ErrIncorrectIdentity)
+	}
+
+	if t.network.ChainHash() != block.Args[1] {
+		return nil, fmt.Errorf("%w: invalid chainhash", age.ErrIncorrectIdentity)
+	}
+
+	cipherDEK, err := readCipherDEK(bytes.NewReader(block.Body))
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to read tlock block: %v", age.ErrIncorrectIdentity, err)
+	}
+
+	plainDEK, err := decryptDEK(context.Background(), cipherDEK, t.network, blockRound)
+	if err != nil {
+		return nil, fmt.Errorf("%w: error while decrypting filekey: %v", age.ErrIncorrectIdentity, err)
+	}
+
+	return plainDEK, nil
+}
+
+const (
+	kyberPointLen = 48
+	cipherVLen    = 32
+	cipherWLen    = 32
+)
+
+func readCipherDEK(in io.Reader) (CipherDEK, error) {
+	kyberPoint, err := readBytes(in, kyberPointLen)
+	if err != nil {
+		return CipherDEK{}, fmt.Errorf("read kyber point: %w", err)
+	}
+
+	cipherV, err := readBytes(in, cipherVLen)
+	if err != nil {
+		return CipherDEK{}, fmt.Errorf("read cipher v: %w", err)
+	}
+
+	cipherW, err := readBytes(in, cipherWLen)
+	if err != nil {
+		return CipherDEK{}, fmt.Errorf("read cipher w: %w", err)
+	}
+
+	cd := CipherDEK{
+		KyberPoint: kyberPoint,
+		CipherV:    cipherV,
+		CipherW:    cipherW,
+	}
+
+	return cd, nil
+}
+
+// readBytes reads the specified number of bytes from the reader.
+func readBytes(in io.Reader, length int) ([]byte, error) {
+	data := make([]byte, length)
+	n, err := io.ReadFull(in, data)
+
+	switch {
+	case err == io.EOF:
+		return []byte{}, io.EOF
+
+	case err == io.ErrUnexpectedEOF:
+		return data[:n], io.ErrUnexpectedEOF
+
+	case err != nil:
+		return []byte{}, err
+	}
+
+	return data[:n], nil
 }
 
 // =============================================================================
@@ -221,47 +289,14 @@ func NewDecrypter(network Network, dataDecrypter DataDecrypter, decoder Decoder)
 // the cipher data can then be decrypted with that key and written to the
 // specified output destination.
 func (t Decrypter) Decrypt(ctx context.Context, out io.Writer, in io.Reader, armor bool) error {
-	var done bool
-
-	for {
-		if done {
-			return nil
-		}
-
-		// Read and decode the next cipherInfo that exists in the input source.
-		info, err := t.decoder.Decode(in, armor)
-
-		// io.EOF:              There were no bytes left to read.
-		// io.ErrUnexpectedEOF: We read the last remaining bytes from the input source.
-		// err != nil           There is a problem with the decoding.
-		switch {
-		case errors.Is(err, io.EOF):
-			return nil
-
-		case errors.Is(err, io.ErrUnexpectedEOF):
-			done = true
-
-		case err != nil:
-			return fmt.Errorf("decoding input data: %w", err)
-		}
-
-		// Decrypt the dek using time lock decryption.
-		plainDEK, err := decryptDEK(ctx, info.CipherDEK, t.network, info.MetaData.RoundNumber)
-		if err != nil {
-			return fmt.Errorf("decrypt dek: %w", err)
-		}
-
-		// Decrypt the chunk of data returned with the cipherInfo.
-		plainData, err := t.dataDecrypter.Decrypt(plainDEK, info.CipherData)
-		if err != nil {
-			return fmt.Errorf("decrypt data: %w", err)
-		}
-
-		// Write the decrypted data to the destination.
-		if _, err := out.Write(plainData); err != nil {
-			return fmt.Errorf("write data: %w", err)
-		}
+	plainReader, err := age.Decrypt(in, &TLEIdentity{network: t.network})
+	if err != nil {
+		return fmt.Errorf("%w: unable to decrypt", err)
 	}
+	if _, err := io.Copy(out, plainReader); err != nil {
+		return fmt.Errorf("%w: unable to copy", err)
+	}
+	return nil
 }
 
 // decryptDEK attempts to decrypt an encrypted DEK against the provided network
