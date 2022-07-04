@@ -11,8 +11,6 @@ import (
 
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/cmd/commands"
-	"github.com/drand/tlock/data_encrypters/aead"
-	"github.com/drand/tlock/encoders/base"
 	"github.com/drand/tlock/networks/http"
 )
 
@@ -62,8 +60,8 @@ func run(log *log.Logger) error {
 
 	switch {
 	case flags.Decrypt:
-		return tlock.NewDecrypter(network, aead.DataDecrypter{}, base.Decoder{}).Decrypt(ctx, out, in)
+		return tlock.NewDecrypter(network).Decrypt(out, in)
 	default:
-		return commands.Encrypt(ctx, flags, out, in, network, aead.DataEncrypter{}, base.Encoder{})
+		return commands.Encrypt(ctx, flags, out, in, network)
 	}
 }

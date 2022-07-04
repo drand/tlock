@@ -86,23 +86,19 @@ type DataDecrypter interface {
 
 // Encrypter provides an API for time lock encryption.
 type Encrypter struct {
-	network       Network
-	dataEncrypter DataEncrypter
-	encoder       Encoder
+	network Network
 }
 
 // NewEncrypter constructs a Tlock for use with the specified network, encrypter, and encoder.
-func NewEncrypter(network Network, dataEncrypter DataEncrypter, encoder Encoder) Encrypter {
+func NewEncrypter(network Network) Encrypter {
 	return Encrypter{
-		network:       network,
-		dataEncrypter: dataEncrypter,
-		encoder:       encoder,
+		network: network,
 	}
 }
 
 // Encrypt will encrypt the data that is read by the reader which can only be
 // decrypted in the future specified round.
-func (t Encrypter) Encrypt(ctx context.Context, out io.Writer, in io.Reader, roundNumber uint64) error {
+func (t Encrypter) Encrypt(out io.Writer, in io.Reader, roundNumber uint64) error {
 	w, err := age.Encrypt(out, &TLERecipient{network: t.network, round: roundNumber})
 	if err != nil {
 		return fmt.Errorf("%v", err)
@@ -259,17 +255,13 @@ func readCipherDEK(in io.Reader) (CipherDEK, error) {
 
 // Decrypter provides an API for time lock decryption.
 type Decrypter struct {
-	network       Network
-	dataDecrypter DataDecrypter
-	decoder       Decoder
+	network Network
 }
 
 // NewDecrypter constructs a Tlock for use with the specified network, decrypter, and decoder.
-func NewDecrypter(network Network, dataDecrypter DataDecrypter, decoder Decoder) Decrypter {
+func NewDecrypter(network Network) Decrypter {
 	return Decrypter{
-		network:       network,
-		dataDecrypter: dataDecrypter,
-		decoder:       decoder,
+		network: network,
 	}
 }
 
@@ -277,7 +269,7 @@ func NewDecrypter(network Network, dataDecrypter DataDecrypter, decoder Decoder)
 // value that is decoded, the DEK is decrypted with time lock decryption so
 // the cipher data can then be decrypted with that key and written to the
 // specified output destination.
-func (t Decrypter) Decrypt(ctx context.Context, out io.Writer, in io.Reader) error {
+func (t Decrypter) Decrypt(out io.Writer, in io.Reader) error {
 	rr := bufio.NewReader(in)
 
 	if start, _ := rr.Peek(len(armor.Header)); string(start) == armor.Header {
