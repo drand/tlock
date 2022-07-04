@@ -265,16 +265,6 @@ func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (fileK
 		return nil, ErrTooEarly
 	}
 
-	var dekSignature bls.KyberG2
-	if err := dekSignature.UnmarshalBinary(id); err != nil {
-		return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
-	}
-
-	var dekKyberPoint bls.KyberG1
-	if err := dekKyberPoint.UnmarshalBinary(cipherDEK.kyberPoint); err != nil {
-		return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
-	}
-
 	publicKey, err := network.PublicKey()
 	if err != nil {
 		return nil, fmt.Errorf("public key: %w", err)
@@ -292,13 +282,23 @@ func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (fileK
 		return nil, fmt.Errorf("verify beacon: %w", err)
 	}
 
-	dek := ibe.Ciphertext{
-		U: &dekKyberPoint,
+	var signature bls.KyberG2
+	if err := signature.UnmarshalBinary(id); err != nil {
+		return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+	}
+
+	var kyberPoint bls.KyberG1
+	if err := kyberPoint.UnmarshalBinary(cipherDEK.kyberPoint); err != nil {
+		return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+	}
+
+	cipherText := ibe.Ciphertext{
+		U: &kyberPoint,
 		V: cipherDEK.cipherV,
 		W: cipherDEK.cipherW,
 	}
 
-	fileKey, err = ibe.Decrypt(bls.NewBLS12381Suite(), publicKey, &dekSignature, &dek)
+	fileKey, err = ibe.Decrypt(bls.NewBLS12381Suite(), publicKey, &signature, &cipherText)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
