@@ -27,30 +27,6 @@ var ErrTooEarly = errors.New("too early to decrypt")
 
 // =============================================================================
 
-// MetaData represents the metadata that must exist in the encrypted output
-// to support CipherDEK decryption.
-type MetaData struct {
-	RoundNumber uint64
-	ChainHash   string
-}
-
-// CipherDEK represents the encrypted data encryption key (DEK) needed to decrypt
-// the cipher data.
-type CipherDEK struct {
-	KyberPoint []byte
-	CipherV    []byte
-	CipherW    []byte
-}
-
-// CipherInfo represents the data that is encoded and decoded.
-type CipherInfo struct {
-	MetaData   MetaData  // Metadata provides information to decrypt the CipherDEK.
-	CipherDEK  CipherDEK // CipherDEK represents the key to decrypt the CipherData.
-	CipherData []byte    // CipherData represents the data that has been encrypted.
-}
-
-// =============================================================================
-
 // Network represents a system that provides support for encrypting/decrypting
 // a DEK based on a future time.
 type Network interface {
@@ -152,6 +128,14 @@ const (
 	cipherWLen    = 16
 )
 
+// cipherDEK represents the encrypted data encryption key (DEK) needed to decrypt
+// the cipher data.
+type cipherDEK struct {
+	kyberPoint []byte
+	cipherV    []byte
+	cipherW    []byte
+}
+
 // =============================================================================
 
 // tleRecipient implements the age Recipient interface. This is used to encrypt
@@ -249,10 +233,10 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 
 // parseCipherDEK parses the stanzaBody constructed in the Wrap method back to
 // the original cipherDEK.
-func parseCipherDEK(stanzaBody []byte) (CipherDEK, error) {
+func parseCipherDEK(stanzaBody []byte) (cipherDEK, error) {
 	expLen := kyberPointLen + cipherVLen + cipherWLen
 	if len(stanzaBody) != expLen {
-		return CipherDEK{}, fmt.Errorf("incorrect length: exp: %d got: %d", expLen, len(stanzaBody))
+		return cipherDEK{}, fmt.Errorf("incorrect length: exp: %d got: %d", expLen, len(stanzaBody))
 	}
 
 	kyberPoint := make([]byte, kyberPointLen)
@@ -264,10 +248,10 @@ func parseCipherDEK(stanzaBody []byte) (CipherDEK, error) {
 	cipherW := make([]byte, cipherVLen)
 	copy(cipherW, stanzaBody[kyberPointLen+cipherVLen:])
 
-	cd := CipherDEK{
-		KyberPoint: kyberPoint,
-		CipherV:    cipherV,
-		CipherW:    cipherW,
+	cd := cipherDEK{
+		kyberPoint: kyberPoint,
+		cipherV:    cipherV,
+		cipherW:    cipherW,
 	}
 
 	return cd, nil
@@ -275,7 +259,7 @@ func parseCipherDEK(stanzaBody []byte) (CipherDEK, error) {
 
 // decryptDEK attempts to decrypt an encrypted DEK against the provided network
 // for the specified round.
-func decryptDEK(cipherDEK CipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
+func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
 	id, ready := network.IsReadyToDecrypt(roundNumber)
 	if !ready {
 		return nil, ErrTooEarly
@@ -287,7 +271,7 @@ func decryptDEK(cipherDEK CipherDEK, network Network, roundNumber uint64) (plain
 	}
 
 	var dekKyberPoint bls.KyberG1
-	if err := dekKyberPoint.UnmarshalBinary(cipherDEK.KyberPoint); err != nil {
+	if err := dekKyberPoint.UnmarshalBinary(cipherDEK.kyberPoint); err != nil {
 		return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
 	}
 
@@ -310,8 +294,8 @@ func decryptDEK(cipherDEK CipherDEK, network Network, roundNumber uint64) (plain
 
 	dek := ibe.Ciphertext{
 		U: &dekKyberPoint,
-		V: cipherDEK.CipherV,
-		W: cipherDEK.CipherW,
+		V: cipherDEK.cipherV,
+		W: cipherDEK.cipherW,
 	}
 
 	plainDEK, err = ibe.Decrypt(bls.NewBLS12381Suite(), publicKey, &dekSignature, &dek)
