@@ -223,12 +223,12 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 		return nil, fmt.Errorf("parse cipher dek: %w", err)
 	}
 
-	plainDEK, err := decryptDEK(cipherDEK, t.network, blockRound)
+	fileKey, err := decryptDEK(cipherDEK, t.network, blockRound)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
 
-	return plainDEK, nil
+	return fileKey, nil
 }
 
 // parseCipherDEK parses the stanzaBody constructed in the Wrap method back to
@@ -259,7 +259,7 @@ func parseCipherDEK(stanzaBody []byte) (cipherDEK, error) {
 
 // decryptDEK attempts to decrypt an encrypted DEK against the provided network
 // for the specified round.
-func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (plainDEK []byte, err error) {
+func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (fileKey []byte, err error) {
 	id, ready := network.IsReadyToDecrypt(roundNumber)
 	if !ready {
 		return nil, ErrTooEarly
@@ -298,10 +298,10 @@ func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (plain
 		W: cipherDEK.cipherW,
 	}
 
-	plainDEK, err = ibe.Decrypt(bls.NewBLS12381Suite(), publicKey, &dekSignature, &dek)
+	fileKey, err = ibe.Decrypt(bls.NewBLS12381Suite(), publicKey, &dekSignature, &dek)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
 
-	return plainDEK, nil
+	return fileKey, nil
 }
