@@ -31,32 +31,32 @@ func run(log *log.Logger) error {
 		return fmt.Errorf("parse commands: %v", err)
 	}
 
-	var in io.Reader = os.Stdin
+	var src io.Reader = os.Stdin
 	if name := flag.Arg(0); name != "" && name != "-" {
 		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open input file %q: %v", name, err)
 		}
 		defer f.Close()
-		in = f
+		src = f
 	}
 
-	var out io.Writer = os.Stdout
+	var dst io.Writer = os.Stdout
 	if name := flags.Output; name != "" && name != "-" {
 		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
 		defer f.Close()
-		out = f
+		dst = f
 	}
 
 	network := http.NewNetwork(flags.Network, flags.Chain)
 
 	switch {
 	case flags.Decrypt:
-		return tlock.NewDecrypter(network).Decrypt(out, in)
+		return tlock.NewDecrypter(network).Decrypt(dst, src)
 	default:
-		return commands.Encrypt(flags, out, in, network)
+		return commands.Encrypt(flags, dst, src, network)
 	}
 }

@@ -14,17 +14,17 @@ import (
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
 // drand network, and an encrypter for encrypting/decrypting the data.
-func Encrypt(flags Flags, out io.Writer, in io.Reader, network tlock.Network) error {
+func Encrypt(flags Flags, dst io.Writer, src io.Reader, network tlock.Network) error {
 	tlock := tlock.NewEncrypter(network)
 
 	if flags.Armor {
-		a := armor.NewWriter(out)
+		a := armor.NewWriter(dst)
 		defer func() {
 			if err := a.Close(); err != nil {
 				fmt.Printf("Error while closing: %v", err)
 			}
 		}()
-		out = a
+		dst = a
 	}
 
 	switch {
@@ -38,7 +38,7 @@ func Encrypt(flags Flags, out io.Writer, in io.Reader, network tlock.Network) er
 			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
 
-		return tlock.Encrypt(out, in, flags.Round)
+		return tlock.Encrypt(dst, src, flags.Round)
 
 	case flags.Duration != "":
 		duration, err := parseDuration(flags.Duration)
@@ -51,7 +51,7 @@ func Encrypt(flags Flags, out io.Writer, in io.Reader, network tlock.Network) er
 			return fmt.Errorf("round number: %w", err)
 		}
 
-		return tlock.Encrypt(out, in, roundNumber)
+		return tlock.Encrypt(dst, src, roundNumber)
 	}
 
 	return nil
