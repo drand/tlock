@@ -31,7 +31,7 @@ Options:
 	-n, --network  The drand API endpoint to use.
 	-c, --chain    The chain to use. Can use either beacon ID name or beacon hash. Use beacon hash in order to ensure public key integrity.
 	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
-	-D, --duration How long to wait before the message can be decrypted.
+	-D, --duration How long to wait before the message can be decrypted. Defaults to 120d (120 days).
 	-o, --output   Write the result to the file at path OUTPUT.
 	-a, --armor    Encrypt or Decrypt using the PEM encoded format.
 
@@ -39,9 +39,11 @@ If the OUTPUT exists, it will be overwritten.
 
 NETWORK defaults to the Drand test network http://pl-us.testnet.drand.sh/.
 
-CHAIN defaults to the "unchained" hash in the default test network: 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
+CHAIN defaults to the "unchained" hash in the default test network:
+7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
 
-When --duration is specified, it expects a value following Golang's type Duration and its units ("ns", "us" (or "µs"), "ms", "s", "m", "h"). It also accepts the units for day, month and year: d, M, y.
+DURATION has a default value of 120d. When it is specified, it expects a number
+followed by one of these units: "ns", "us" (or "µs"), "ms", "s", "m", "h", "d", "M", "y").
 
 Example:
     $ ./tle -D 10d -o encrypted_file data_to_encrypt
