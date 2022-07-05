@@ -2,6 +2,16 @@
 
 tlock gives you time based encryption and decryption capabilities using a Drand network. It is also a Go library.
 
+Our timelock encryption system relies on an unchained drand network. Currently, the only publicly available one is the League of Entropy Testnet.
+
+However, it should soon also be available on the LoE Mainnet.
+
+Working endpoints to access it are, for example:
+- https://pl-us.testnet.drand.sh/
+- https://testnet0-api.drand.cloudflare.com/
+
+You can also spin up a new drand network and run your own, but notice that the security guarantees boil down to the trust you can have in your network.
+
 ## Install the CLI
 
 ```bash
