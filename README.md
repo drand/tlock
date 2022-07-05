@@ -11,7 +11,7 @@ go install github.com/drand/tlock/cmd@latest
 ## Or Build it
 
 ```bash
-go build -v ./...
+go build cmd/tle.go
 ```
 This tool is pure Go, it works without CGO (`CGO_ENABLED=0`)
 
@@ -89,7 +89,7 @@ $ tle -a -d -n="http://pl-us.testnet.drand.sh/" -o=decrypted_data encrypted_data
 // Initialise the network.
 // The default host is the Drand test network "http://pl-us.testnet.drand.sh/"
 // The default hash is "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
- network := http.NewNetwork(host, chainHash)
+network := http.NewNetwork(host, chainHash)
 
 // Read the data to be encrypted.
 in, err := os.Open("data.txt")
