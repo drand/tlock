@@ -71,8 +71,9 @@ func parseDuration(duration string) (time.Duration, error) {
 
 	now := time.Now()
 
-	if number, _, found := strings.Cut(duration, "d"); found {
-		days, err := strconv.Atoi(number)
+	pieces := strings.Split(duration, "d")
+	if len(pieces) == 2 {
+		days, err := strconv.Atoi(pieces[0])
 		if err != nil {
 			return time.Second, fmt.Errorf("parse day duration: %w", err)
 		}
@@ -80,8 +81,9 @@ func parseDuration(duration string) (time.Duration, error) {
 		return diff, nil
 	}
 
-	if number, _, found := strings.Cut(duration, "M"); found {
-		months, err := strconv.Atoi(number)
+	pieces = strings.Split(duration, "M")
+	if len(pieces) == 2 {
+		months, err := strconv.Atoi(pieces[0])
 		if err != nil {
 			return time.Second, fmt.Errorf("parse month duration: %w", err)
 		}
@@ -89,8 +91,9 @@ func parseDuration(duration string) (time.Duration, error) {
 		return diff, nil
 	}
 
-	if number, _, found := strings.Cut(duration, "y"); found {
-		years, err := strconv.Atoi(number)
+	pieces = strings.Split(duration, "y")
+	if len(pieces) == 2 {
+		years, err := strconv.Atoi(pieces[0])
 		if err != nil {
 			return time.Second, fmt.Errorf("parse year duration: %w", err)
 		}
