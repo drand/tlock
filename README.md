@@ -86,58 +86,58 @@ $ tle -a -d -n="http://pl-us.testnet.drand.sh/" -o=decrypted_data encrypted_data
 
 ### Encryption and Decryption
 ```go
-    // Initialise the network.
-    // The default host is the Drand test network "http://pl-us.testnet.drand.sh/"
-    // The default hash is "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
-    network := http.NewNetwork(host, chainHash)
+// Initialise the network.
+// The default host is the Drand test network "http://pl-us.testnet.drand.sh/"
+// The default hash is "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+ network := http.NewNetwork(host, chainHash)
 
-	// Read the data to be encrypted.
-	in, err := os.Open("data.txt")
-	if err != nil {
-		log.Fatalf("reader error %s", err)
-		return
-	}
-	defer in.Close()
+// Read the data to be encrypted.
+in, err := os.Open("data.txt")
+if err != nil {
+	log.Fatalf("reader error %s", err)
+	return
+}
+defer in.Close()
 
-	// Specify the minimum duration your encrypt file should be allowed
-	// to be decrypted.
-	duration := 10 * time.Second
+// Specify the minimum duration your encrypt file should be allowed
+// to be decrypted.
+duration := 10 * time.Second
 
-	// Initialise the encrypter with the given network.
-	tl := tlock.NewEncrypter(network)
+// Initialise the encrypter with the given network.
+tl := tlock.NewEncrypter(network)
 
-	// Use the network to identify the round number from now to the given duration.
-	roundNumber, err := network.RoundNumber(time.Now().Add(duration))
-	if err != nil {
-		log.Fatalf("round by duration: %s", err)
-		return
-	}
+// Use the network to identify the round number from now to the given duration.
+roundNumber, err := network.RoundNumber(time.Now().Add(duration))
+if err != nil {
+	log.Fatalf("round by duration: %s", err)
+	return
+}
 
-	// Write the encoded information to this buffer.
-	var cipherData bytes.Buffer
+// Write the encoded information to this buffer.
+var cipherData bytes.Buffer
 
-    // Encrypt the data from the file, with the given round, into cipherData.
-	err = tl.Encrypt(&cipherData, in, roundNumber)
-	if err != nil {
-		log.Fatalf("encrypt with duration error %s", err)
-		return
-	}
+// Encrypt the data from the file, with the given round, into cipherData.
+err = tl.Encrypt(&cipherData, in, roundNumber)
+if err != nil {
+	log.Fatalf("encrypt with duration error %s", err)
+	return
+}
 
-	// =========================================================================
-	// Decrypt
+// =========================================================================
+// Decrypt
 
-	// Write the decoded information to this buffer.
-	var plainData bytes.Buffer
+// Write the decoded information to this buffer.
+var plainData bytes.Buffer
 
-    // If you try to decrypt the data *before* the specified duration, it will
-    // fail with the message: "too early to decrypt".
-	err = tlock.NewDecrypter(network).Decrypt(&plainData, &cipherData)
-	if err == nil {
-		log.Fatal("expecting decrypt error")
-		return
-	}
+// If you try to decrypt the data *before* the specified duration, it will
+// fail with the message: "too early to decrypt".
+err = tlock.NewDecrypter(network).Decrypt(&plainData, &cipherData)
+if err == nil {
+	log.Fatal("expecting decrypt error")
+	return
+}
 
-	// The buffer plainData now holds the plain data.
+// The buffer plainData now holds the plain data.
 ```
 
 # License
