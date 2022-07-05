@@ -23,7 +23,10 @@ const (
 )
 
 func Test_EarlyDecryptionWithDuration(t *testing.T) {
-	network := http.NewNetwork(testnetHost, testnetChainHash)
+	network, err := http.NewNetwork(testnetHost, testnetChainHash)
+	if err != nil {
+		t.Fatalf("network error %s", err)
+	}
 
 	// =========================================================================
 	// Encrypt
@@ -71,8 +74,10 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 }
 
 func Test_EarlyDecryptionWithRound(t *testing.T) {
-	network := http.NewNetwork(testnetHost, testnetChainHash)
-
+	network, err := http.NewNetwork(testnetHost, testnetChainHash)
+	if err != nil {
+		t.Fatalf("network error %s", err)
+	}
 	// =========================================================================
 	// Encrypt
 
@@ -120,7 +125,10 @@ func Test_EncryptionWithDuration(t *testing.T) {
 		t.Skip("skipping testing in short mode")
 	}
 
-	network := http.NewNetwork(testnetHost, testnetChainHash)
+	network, err := http.NewNetwork(testnetHost, testnetChainHash)
+	if err != nil {
+		t.Fatalf("network error %s", err)
+	}
 
 	// =========================================================================
 	// Encrypt
@@ -173,7 +181,10 @@ func Test_EncryptionWithRound(t *testing.T) {
 		t.Skip("skipping testing in short mode")
 	}
 
-	network := http.NewNetwork(testnetHost, testnetChainHash)
+	network, err := http.NewNetwork(testnetHost, testnetChainHash)
+	if err != nil {
+		t.Fatalf("network error %s", err)
+	}
 
 	// =========================================================================
 	// Encrypt

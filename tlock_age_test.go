@@ -15,7 +15,10 @@ const (
 )
 
 func Test_WrapUnwrap(t *testing.T) {
-	network := http.NewNetwork(testnetHost, testnetChainHash)
+	network, err := http.NewNetwork(testnetHost, testnetChainHash)
+	if err != nil {
+		t.Fatalf("network error %s", err)
+	}
 
 	latestRound, err := network.RoundNumber(time.Now())
 	if err != nil {
