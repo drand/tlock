@@ -298,7 +298,7 @@ func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (fileK
 		W: cipherDEK.cipherW,
 	}
 
-	fileKey, err = ibe.Decrypt(bls.NewBLS12381Suite(), publicKey, &signature, &cipherText)
+	fileKey, err = ibe.Decrypt(bls.NewBLS12381Suite(), &signature, &cipherText)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}

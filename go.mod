@@ -5,13 +5,11 @@ go 1.18
 require (
 	filippo.io/age v1.0.0
 	github.com/drand/drand v1.4.3-testnet
-	github.com/drand/kyber v1.1.10
+	github.com/drand/kyber v1.1.11
 	github.com/drand/kyber-bls12381 v0.2.2
 )
 
 require golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
-
-replace github.com/drand/kyber => github.com/drand/kyber v1.1.7-0.20211021123445-5e60c7de66c3
 
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
