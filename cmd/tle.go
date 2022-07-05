@@ -55,7 +55,10 @@ func run(log *log.Logger) error {
 		dst = f
 	}
 
-	network := http.NewNetwork(flags.Network, flags.Chain)
+	network, err := http.NewNetwork(flags.Network, flags.Chain)
+	if err != nil {
+		return err
+	}
 
 	switch {
 	case flags.Decrypt:

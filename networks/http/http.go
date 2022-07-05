@@ -4,6 +4,7 @@ package http
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,11 +12,16 @@ import (
 
 	"github.com/drand/drand/client"
 	dhttp "github.com/drand/drand/client/http"
+	"github.com/drand/drand/common/scheme"
 	"github.com/drand/kyber"
 )
 
 // timeout represents the maximum amount of time to wait for network operations.
 const timeout = 5 * time.Second
+
+// ErrNotUnchained represents an error when the informed chain belongs to a
+// chained network.
+var ErrNotUnchained = errors.New("hash does not belong to an unchained network")
 
 // =============================================================================
 
@@ -28,11 +34,33 @@ type Network struct {
 }
 
 // NewNetwork constructs a network for use that will use the http client.
-func NewNetwork(host string, chainHash string) *Network {
-	return &Network{
+func NewNetwork(host string, chainHash string) (*Network, error) {
+	network := Network{
 		host:      host,
 		chainHash: chainHash,
 	}
+
+	// Validate if the chainHash belongs to an unchained network.
+	client, err := network.client()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	info, err := client.Info(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting client information: %w", err)
+	}
+
+	if info.Scheme.ID != scheme.UnchainedSchemeID {
+		return nil, ErrNotUnchained
+	}
+
+	network.c = client
+
+	return &network, nil
 }
 
 // Host returns the host network information.
