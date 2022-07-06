@@ -5,13 +5,18 @@ package tlock
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
+	"github.com/drand/drand/chain"
+	"github.com/drand/drand/common/scheme"
 	"github.com/drand/kyber"
+	bls "github.com/drand/kyber-bls12381"
+	"github.com/drand/kyber/encrypt/ibe"
 )
 
 // ErrTooEarly represents an error when a decryption operation happens early.
@@ -45,7 +50,7 @@ func NewEncrypter(network Network) Encrypter {
 // Encrypt will encrypt the source and write that to the destination. The encrypted
 // data will not be decryptable until the specified round is reached by the network.
 func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) error {
-	w, err := age.Encrypt(dst, &tleRecipient{network: t.network, round: roundNumber})
+	w, err := age.Encrypt(dst, &tleRecipient{encrypter: t, roundNumber: roundNumber})
 	if err != nil {
 		return fmt.Errorf("age encrypt: %w", err)
 	}
@@ -59,6 +64,38 @@ func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) err
 	}
 
 	return nil
+}
+
+// TimeLock encrypts the specified data for the given round number. The data
+// can't be decrypted until the specified round is reached by the network in use.
+func (t Encrypter) TimeLock(roundNumber uint64, data []byte) (*ibe.Ciphertext, error) {
+	h := sha256.New()
+	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
+		return nil, fmt.Errorf("sha256 write: %w", err)
+	}
+	id := h.Sum(nil)
+
+	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), t.network.PublicKey(), id, data)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt data: %w", err)
+	}
+
+	return cipherText, nil
+}
+
+// CiphertextToBytes converts a ciphertext value to a set of bytes.
+func (t Encrypter) CiphertextToBytes(ciphertext *ibe.Ciphertext) ([]byte, error) {
+	kyberPoint, err := ciphertext.U.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("marshal kyber point: %w", err)
+	}
+
+	b := make([]byte, kyberPointLen+cipherVLen+cipherWLen)
+	copy(b, kyberPoint)
+	copy(b[kyberPointLen:], ciphertext.V)
+	copy(b[kyberPointLen+cipherVLen:], ciphertext.W)
+
+	return b, nil
 }
 
 // =============================================================================
@@ -88,7 +125,7 @@ func (t Decrypter) Decrypt(dst io.Writer, src io.Reader) error {
 		src = rr
 	}
 
-	r, err := age.Decrypt(src, &tleIdentity{network: t.network})
+	r, err := age.Decrypt(src, &tleIdentity{decrypter: t})
 	if err != nil {
 		return fmt.Errorf("age decrypt: %w", err)
 	}
@@ -98,4 +135,67 @@ func (t Decrypter) Decrypt(dst io.Writer, src io.Reader) error {
 	}
 
 	return nil
+}
+
+// TimeUnlock decrypts the specified ciphertext for the given round number. The
+// ciphertext can't be decrypted until the specified round is reached by the network in use.
+func (t Decrypter) TimeUnlock(roundNumber uint64, ciphertext *ibe.Ciphertext) ([]byte, error) {
+	id, ready := t.network.IsReadyToDecrypt(roundNumber)
+	if !ready {
+		return nil, ErrTooEarly
+	}
+
+	b := chain.Beacon{
+		Round:     roundNumber,
+		Signature: id,
+	}
+	sch := scheme.Scheme{
+		ID:              scheme.UnchainedSchemeID,
+		DecouplePrevSig: true,
+	}
+	if err := chain.NewVerifier(sch).VerifyBeacon(b, t.network.PublicKey()); err != nil {
+		return nil, fmt.Errorf("verify beacon: %w", err)
+	}
+
+	var signature bls.KyberG2
+	if err := signature.UnmarshalBinary(id); err != nil {
+		return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+	}
+
+	data, err := ibe.Decrypt(bls.NewBLS12381Suite(), &signature, ciphertext)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt dek: %w", err)
+	}
+
+	return data, nil
+}
+
+// BytesToCiphertext converts bytes to a ciphertext.
+func (t Decrypter) BytesToCiphertext(b []byte) (*ibe.Ciphertext, error) {
+	expLen := kyberPointLen + cipherVLen + cipherWLen
+	if len(b) != expLen {
+		return nil, fmt.Errorf("incorrect length: exp: %d got: %d", expLen, len(b))
+	}
+
+	kyberPoint := make([]byte, kyberPointLen)
+	copy(kyberPoint, b[:kyberPointLen])
+
+	cipherV := make([]byte, cipherVLen)
+	copy(cipherV, b[kyberPointLen:kyberPointLen+cipherVLen])
+
+	cipherW := make([]byte, cipherVLen)
+	copy(cipherW, b[kyberPointLen+cipherVLen:])
+
+	var u bls.KyberG1
+	if err := u.UnmarshalBinary(kyberPoint); err != nil {
+		return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+	}
+
+	ct := ibe.Ciphertext{
+		U: &u,
+		V: cipherV,
+		W: cipherW,
+	}
+
+	return &ct, nil
 }

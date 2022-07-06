@@ -33,7 +33,7 @@ Options:
 	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
 	-D, --duration How long to wait before the message can be decrypted. Defaults to 120d (120 days).
 	-o, --output   Write the result to the file at path OUTPUT.
-	-a, --armor    Encrypt or Decrypt using the PEM encoded format.
+	-a, --armor    Encrypt using the PEM encoded format.
 
 If the OUTPUT exists, it will be overwritten.
 
@@ -132,6 +132,9 @@ func validateFlags(f Flags) error {
 		}
 		if f.Duration != defaultDuration {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
+		}
+		if f.Armor {
+			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
 		}
 
 	default:
