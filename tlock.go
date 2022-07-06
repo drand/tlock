@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
@@ -23,11 +22,9 @@ var ErrTooEarly = errors.New("too early to decrypt")
 // Network represents a system that provides support for encrypting/decrypting
 // a DEK based on a future time.
 type Network interface {
-	Host() string
 	ChainHash() string
-	PublicKey() (kyber.Point, error)
+	PublicKey() kyber.Point
 	IsReadyToDecrypt(roundNumber uint64) (id []byte, ready bool)
-	RoundNumber(t time.Time) (uint64, error)
 }
 
 // =============================================================================

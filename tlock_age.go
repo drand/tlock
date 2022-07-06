@@ -46,12 +46,7 @@ func (t *tleRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 		return nil, fmt.Errorf("round by number: %w", err)
 	}
 
-	publicKey, err := t.network.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("public key: %w", err)
-	}
-
-	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, fileKey)
+	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), t.network.PublicKey(), id, fileKey)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt dek: %w", err)
 	}
@@ -167,11 +162,6 @@ func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (fileK
 		return nil, ErrTooEarly
 	}
 
-	publicKey, err := network.PublicKey()
-	if err != nil {
-		return nil, fmt.Errorf("public key: %w", err)
-	}
-
 	b := chain.Beacon{
 		Round:     roundNumber,
 		Signature: id,
@@ -180,7 +170,7 @@ func decryptDEK(cipherDEK cipherDEK, network Network, roundNumber uint64) (fileK
 		ID:              scheme.UnchainedSchemeID,
 		DecouplePrevSig: true,
 	}
-	if err := chain.NewVerifier(sch).VerifyBeacon(b, publicKey); err != nil {
+	if err := chain.NewVerifier(sch).VerifyBeacon(b, network.PublicKey()); err != nil {
 		return nil, fmt.Errorf("verify beacon: %w", err)
 	}
 

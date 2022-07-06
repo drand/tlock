@@ -9,12 +9,13 @@ import (
 
 	"filippo.io/age/armor"
 	"github.com/drand/tlock"
+	"github.com/drand/tlock/networks/http"
 )
 
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
 // drand network, and an encrypter for encrypting/decrypting the data.
-func Encrypt(flags Flags, dst io.Writer, src io.Reader, network tlock.Network) error {
+func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) error {
 	tlock := tlock.NewEncrypter(network)
 
 	if flags.Armor {
