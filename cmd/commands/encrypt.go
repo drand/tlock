@@ -30,11 +30,7 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 
 	switch {
 	case flags.Round != 0:
-		lastestAvailableRound, err := network.RoundNumber(time.Now())
-		if err != nil {
-			return fmt.Errorf("round numer: %w", err)
-		}
-
+		lastestAvailableRound := network.RoundNumber(time.Now())
 		if flags.Round < lastestAvailableRound {
 			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
@@ -47,11 +43,7 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 			return fmt.Errorf("parse duration: %w", err)
 		}
 
-		roundNumber, err := network.RoundNumber(time.Now().Add(duration))
-		if err != nil {
-			return fmt.Errorf("round number: %w", err)
-		}
-
+		roundNumber := network.RoundNumber(time.Now().Add(duration))
 		return tlock.Encrypt(dst, src, roundNumber)
 	}
 

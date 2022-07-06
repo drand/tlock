@@ -20,13 +20,8 @@ func Test_WrapUnwrap(t *testing.T) {
 		t.Fatalf("network error %s", err)
 	}
 
-	latestRound, err := network.RoundNumber(time.Now())
-	if err != nil {
-		t.Fatalf("client: %s", err)
-	}
-
 	recipient := tleRecipient{
-		round:   latestRound,
+		round:   network.RoundNumber(time.Now()),
 		network: network,
 	}
 

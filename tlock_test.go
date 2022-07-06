@@ -46,11 +46,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 
 	tl := tlock.NewEncrypter(network)
 
-	roundNumber, err := network.RoundNumber(time.Now().Add(duration))
-	if err != nil {
-		t.Fatalf("round by duration: %s", err)
-	}
-
+	roundNumber := network.RoundNumber(time.Now().Add(duration))
 	err = tl.Encrypt(&cipherData, in, roundNumber)
 	if err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
@@ -88,16 +84,10 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	}
 	defer in.Close()
 
-	futureRound, err := network.RoundNumber(time.Now().Add(1 * time.Minute))
-	if err != nil {
-		t.Fatalf("client: %s", err)
-	}
-
-	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
+	futureRound := network.RoundNumber(time.Now().Add(1 * time.Minute))
 
 	tl := tlock.NewEncrypter(network)
-
 	err = tl.Encrypt(&cipherData, in, futureRound)
 	if err != nil {
 		t.Fatalf("encrypt with round error %s", err)
@@ -148,11 +138,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 
 	tl := tlock.NewEncrypter(network)
 
-	roundNumber, err := network.RoundNumber(time.Now().Add(duration))
-	if err != nil {
-		t.Fatalf("round by duration: %s", err)
-	}
-
+	roundNumber := network.RoundNumber(time.Now().Add(duration))
 	err = tl.Encrypt(&cipherData, in, roundNumber)
 	if err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
@@ -199,13 +185,8 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	futureRound, err := network.RoundNumber(time.Now().Add(6 * time.Second))
-	if err != nil {
-		t.Fatalf("client: %s", err)
-	}
-
-	err = tlock.NewEncrypter(network).Encrypt(&cipherData, in, futureRound)
-	if err != nil {
+	futureRound := network.RoundNumber(time.Now().Add(6 * time.Second))
+	if err := tlock.NewEncrypter(network).Encrypt(&cipherData, in, futureRound); err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
 
