@@ -150,6 +150,15 @@ func TimeUnlock(publicKey kyber.Point, beacon chain.Beacon, ciphertext *ibe.Ciph
 	return data, nil
 }
 
+// =============================================================================
+
+// These constants define the size of the different CipherDEK fields.
+const (
+	kyberPointLen = 48
+	cipherVLen    = 16
+	cipherWLen    = 16
+)
+
 // CiphertextToBytes converts a ciphertext value to a set of bytes.
 func CiphertextToBytes(ciphertext *ibe.Ciphertext) ([]byte, error) {
 	kyberPoint, err := ciphertext.U.MarshalBinary()

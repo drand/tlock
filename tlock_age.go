@@ -9,15 +9,6 @@ import (
 	"github.com/drand/drand/chain"
 )
 
-// These constants define the size of the different CipherDEK fields.
-const (
-	kyberPointLen = 48
-	cipherVLen    = 16
-	cipherWLen    = 16
-)
-
-// =============================================================================
-
 // tleRecipient implements the age Recipient interface. This is used to encrypt
 // data with the age Encrypt API.
 type tleRecipient struct {
