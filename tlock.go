@@ -50,7 +50,7 @@ func NewEncrypter(network Network) Encrypter {
 // Encrypt will encrypt the source and write that to the destination. The encrypted
 // data will not be decryptable until the specified round is reached by the network.
 func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) error {
-	w, err := age.Encrypt(dst, &tleRecipient{encrypter: t, roundNumber: roundNumber})
+	w, err := age.Encrypt(dst, &tleRecipient{network: t.network, roundNumber: roundNumber})
 	if err != nil {
 		return fmt.Errorf("age encrypt: %w", err)
 	}
@@ -93,7 +93,7 @@ func (t Decrypter) Decrypt(dst io.Writer, src io.Reader) error {
 		src = rr
 	}
 
-	r, err := age.Decrypt(src, &tleIdentity{decrypter: t})
+	r, err := age.Decrypt(src, &tleIdentity{network: t.network})
 	if err != nil {
 		return fmt.Errorf("age decrypt: %w", err)
 	}

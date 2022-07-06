@@ -22,7 +22,7 @@ func Test_WrapUnwrap(t *testing.T) {
 
 	recipient := tleRecipient{
 		roundNumber: network.RoundNumber(time.Now()),
-		encrypter:   NewEncrypter(network),
+		network:     network,
 	}
 
 	// 16 is the constant fileKeySize
@@ -37,7 +37,7 @@ func Test_WrapUnwrap(t *testing.T) {
 	}
 
 	identity := tleIdentity{
-		decrypter: NewDecrypter(network),
+		network: network,
 	}
 
 	b, err := identity.Unwrap(stanza)
