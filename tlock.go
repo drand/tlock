@@ -66,38 +66,6 @@ func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) err
 	return nil
 }
 
-// TimeLock encrypts the specified data for the given round number. The data
-// can't be decrypted until the specified round is reached by the network in use.
-func (t Encrypter) TimeLock(roundNumber uint64, data []byte) (*ibe.Ciphertext, error) {
-	h := sha256.New()
-	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
-		return nil, fmt.Errorf("sha256 write: %w", err)
-	}
-	id := h.Sum(nil)
-
-	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), t.network.PublicKey(), id, data)
-	if err != nil {
-		return nil, fmt.Errorf("encrypt data: %w", err)
-	}
-
-	return cipherText, nil
-}
-
-// CiphertextToBytes converts a ciphertext value to a set of bytes.
-func (t Encrypter) CiphertextToBytes(ciphertext *ibe.Ciphertext) ([]byte, error) {
-	kyberPoint, err := ciphertext.U.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("marshal kyber point: %w", err)
-	}
-
-	b := make([]byte, kyberPointLen+cipherVLen+cipherWLen)
-	copy(b, kyberPoint)
-	copy(b[kyberPointLen:], ciphertext.V)
-	copy(b[kyberPointLen+cipherVLen:], ciphertext.W)
-
-	return b, nil
-}
-
 // =============================================================================
 
 // Decrypter provides an API for time lock decryption.
@@ -137,28 +105,38 @@ func (t Decrypter) Decrypt(dst io.Writer, src io.Reader) error {
 	return nil
 }
 
-// TimeUnlock decrypts the specified ciphertext for the given round number. The
-// ciphertext can't be decrypted until the specified round is reached by the network in use.
-func (t Decrypter) TimeUnlock(roundNumber uint64, ciphertext *ibe.Ciphertext) ([]byte, error) {
-	id, ready := t.network.IsReadyToDecrypt(roundNumber)
-	if !ready {
-		return nil, ErrTooEarly
+// =============================================================================
+
+// TimeLock encrypts the specified data for the given round number. The data
+// can't be decrypted until the specified round is reached by the network in use.
+func TimeLock(publicKey kyber.Point, roundNumber uint64, data []byte) (*ibe.Ciphertext, error) {
+	h := sha256.New()
+	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
+		return nil, fmt.Errorf("sha256 write: %w", err)
+	}
+	id := h.Sum(nil)
+
+	cipherText, err := ibe.Encrypt(bls.NewBLS12381Suite(), publicKey, id, data)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt data: %w", err)
 	}
 
-	b := chain.Beacon{
-		Round:     roundNumber,
-		Signature: id,
-	}
+	return cipherText, nil
+}
+
+// TimeUnlock decrypts the specified ciphertext for the given beacon. The
+// ciphertext can't be decrypted until the specified round is reached by the network in use.
+func TimeUnlock(publicKey kyber.Point, beacon chain.Beacon, ciphertext *ibe.Ciphertext) ([]byte, error) {
 	sch := scheme.Scheme{
 		ID:              scheme.UnchainedSchemeID,
 		DecouplePrevSig: true,
 	}
-	if err := chain.NewVerifier(sch).VerifyBeacon(b, t.network.PublicKey()); err != nil {
+	if err := chain.NewVerifier(sch).VerifyBeacon(beacon, publicKey); err != nil {
 		return nil, fmt.Errorf("verify beacon: %w", err)
 	}
 
 	var signature bls.KyberG2
-	if err := signature.UnmarshalBinary(id); err != nil {
+	if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
 		return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
 	}
 
@@ -170,8 +148,23 @@ func (t Decrypter) TimeUnlock(roundNumber uint64, ciphertext *ibe.Ciphertext) ([
 	return data, nil
 }
 
+// CiphertextToBytes converts a ciphertext value to a set of bytes.
+func CiphertextToBytes(ciphertext *ibe.Ciphertext) ([]byte, error) {
+	kyberPoint, err := ciphertext.U.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("marshal kyber point: %w", err)
+	}
+
+	b := make([]byte, kyberPointLen+cipherVLen+cipherWLen)
+	copy(b, kyberPoint)
+	copy(b[kyberPointLen:], ciphertext.V)
+	copy(b[kyberPointLen+cipherVLen:], ciphertext.W)
+
+	return b, nil
+}
+
 // BytesToCiphertext converts bytes to a ciphertext.
-func (t Decrypter) BytesToCiphertext(b []byte) (*ibe.Ciphertext, error) {
+func BytesToCiphertext(b []byte) (*ibe.Ciphertext, error) {
 	expLen := kyberPointLen + cipherVLen + cipherWLen
 	if len(b) != expLen {
 		return nil, fmt.Errorf("incorrect length: exp: %d got: %d", expLen, len(b))

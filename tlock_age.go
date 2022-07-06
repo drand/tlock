@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"filippo.io/age"
+	"github.com/drand/drand/chain"
 )
 
 // These constants define the size of the different CipherDEK fields.
@@ -28,12 +29,12 @@ type tleRecipient struct {
 // age that is used for encrypting/decrypting data. Inside of Wrap we encrypt
 // the DEK using time lock encryption.
 func (t *tleRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
-	ciphertext, err := t.encrypter.TimeLock(t.roundNumber, fileKey)
+	ciphertext, err := TimeLock(t.encrypter.network.PublicKey(), t.roundNumber, fileKey)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt dek: %w", err)
 	}
 
-	body, err := t.encrypter.CiphertextToBytes(ciphertext)
+	body, err := CiphertextToBytes(ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("bytes: %w", err)
 	}
@@ -82,12 +83,22 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 		return nil, errors.New("wrong chainhash")
 	}
 
-	ciphertext, err := t.decrypter.BytesToCiphertext(stanza.Body)
+	ciphertext, err := BytesToCiphertext(stanza.Body)
 	if err != nil {
 		return nil, fmt.Errorf("parse cipher dek: %w", err)
 	}
 
-	fileKey, err := t.decrypter.TimeUnlock(roundNumber, ciphertext)
+	id, ready := t.decrypter.network.IsReadyToDecrypt(roundNumber)
+	if !ready {
+		return nil, fmt.Errorf("is ready: %w", ErrTooEarly)
+	}
+
+	beacon := chain.Beacon{
+		Round:     roundNumber,
+		Signature: id,
+	}
+
+	fileKey, err := TimeUnlock(t.decrypter.network.PublicKey(), beacon, ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
