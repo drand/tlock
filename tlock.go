@@ -49,18 +49,20 @@ func NewEncrypter(network Network) Encrypter {
 
 // Encrypt will encrypt the source and write that to the destination. The encrypted
 // data will not be decryptable until the specified round is reached by the network.
-func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) error {
+func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) (err error) {
 	w, err := age.Encrypt(dst, &tleRecipient{network: t.network, roundNumber: roundNumber})
 	if err != nil {
 		return fmt.Errorf("age encrypt: %w", err)
 	}
 
+	defer func() {
+		if err = w.Close(); err != nil {
+			err = fmt.Errorf("close: %w", err)
+		}
+	}()
+
 	if _, err := io.Copy(w, src); err != nil {
 		return fmt.Errorf("write: %w", err)
-	}
-
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("close: %w", err)
 	}
 
 	return nil
