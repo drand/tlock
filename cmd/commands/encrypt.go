@@ -40,7 +40,7 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 	case flags.Duration != "":
 		duration, err := parseDuration(flags.Duration)
 		if err != nil {
-			return fmt.Errorf("parse duration: %w", err)
+			return err
 		}
 
 		roundNumber := network.RoundNumber(time.Now().Add(duration))
@@ -59,7 +59,7 @@ func parseDuration(duration string) (time.Duration, error) {
 
 	// M has to be capitalised to avoid conflict with minutes.
 	if !strings.ContainsAny(duration, "dMy") {
-		return time.Second, fmt.Errorf("unknown unit")
+		return time.Second, fmt.Errorf("unknown duration unit")
 	}
 
 	now := time.Now()
