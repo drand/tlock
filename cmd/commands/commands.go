@@ -20,8 +20,7 @@ const (
 
 // =============================================================================
 
-const usage = `
-Usage:
+const usage = `Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 	tle --decrypt [-o OUTPUT] [INPUT]
 
