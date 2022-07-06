@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/drand/drand/chain"
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/networks/http"
 )
@@ -205,5 +206,40 @@ func Test_EncryptionWithRound(t *testing.T) {
 
 	if !bytes.Equal(plainData.Bytes(), dataFile) {
 		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(plainData.Bytes()))
+	}
+}
+
+func Test_TimeLockUnlock(t *testing.T) {
+	network, err := http.NewNetwork(testnetHost, testnetChainHash)
+	if err != nil {
+		t.Fatalf("network error %s", err)
+	}
+
+	futureRound := network.RoundNumber(time.Now())
+
+	id, ready := network.IsReadyToDecrypt(futureRound)
+	if !ready {
+		t.Fatalf("ready to decrypt error %s", err)
+	}
+
+	data := []byte(`anything`)
+
+	cipherText, err := tlock.TimeLock(network.PublicKey(), futureRound, data)
+	if err != nil {
+		t.Fatalf("timelock error %s", err)
+	}
+
+	beacon := chain.Beacon{
+		Round:     futureRound,
+		Signature: id,
+	}
+
+	b, err := tlock.TimeUnlock(network.PublicKey(), beacon, cipherText)
+	if err != nil {
+		t.Fatalf("timeunlock error %s", err)
+	}
+
+	if !bytes.Equal(data, b) {
+		t.Fatalf("unexpected bytes; expected len %d; got %d", len(data), len(b))
 	}
 }
