@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -21,7 +22,12 @@ func main() {
 	}
 
 	if err := run(log); err != nil {
-		log.Fatal(err)
+		switch {
+		case errors.Is(err, tlock.ErrTooEarly):
+			log.Fatal(tlock.ErrTooEarly)
+		default:
+			log.Fatal(err)
+		}
 	}
 }
 
