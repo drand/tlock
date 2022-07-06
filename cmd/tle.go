@@ -25,6 +25,8 @@ func main() {
 		switch {
 		case errors.Is(err, tlock.ErrTooEarly):
 			log.Fatal(tlock.ErrTooEarly)
+		case errors.Is(err, http.ErrNotUnchained):
+			log.Fatal(http.ErrNotUnchained)
 		default:
 			log.Fatal(err)
 		}
