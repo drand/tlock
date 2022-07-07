@@ -12,6 +12,10 @@ Working endpoints to access it are, for example:
 
 You can also spin up a new drand network and run your own, but notice that the security guarantees boil down to the trust you can have in your network.
 
+## See how it works
+
+[![asciicast](https://asciinema.org/a/gueGlipdAIJlvXo2OI3XelYJ5.svg)](https://asciinema.org/a/gueGlipdAIJlvXo2OI3XelYJ5)
+
 ## Install the CLI
 
 ```bash
