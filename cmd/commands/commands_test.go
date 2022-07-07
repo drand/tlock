@@ -11,24 +11,24 @@ func Test_ParseDuration(t *testing.T) {
 		duration string
 		date     time.Time
 		expected time.Duration
-		error    error
+		err      error
 	}
 
 	tests := []test{
-		{name: "parseDay", duration: "1d", date: time.Now(), expected: 24 * time.Hour, error: nil},
-		{name: "parseMonth", duration: "1M", date: time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC), expected: time.Duration(31*24) * time.Hour, error: nil},
-		{name: "parseYear", duration: "1y", date: time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC), expected: time.Duration(365*24) * time.Hour, error: nil},
-		{name: "parseInvalid", duration: "1C", date: time.Now(), expected: time.Second, error: ErrInvalidDuration},
+		{name: "parseDay", duration: "1d", date: time.Now(), expected: 24 * time.Hour, err: nil},
+		{name: "parseMonth", duration: "1M", date: time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC), expected: time.Duration(31*24) * time.Hour, err: nil},
+		{name: "parseYear", duration: "1y", date: time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC), expected: time.Duration(365*24) * time.Hour, err: nil},
+		{name: "parseInvalid", duration: "1C", date: time.Now(), expected: time.Second, err: ErrInvalidDuration},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			duration, err := parseDuration(tc.date, tc.duration)
-			if tc.error == nil && err != nil {
+			if tc.err == nil && err != nil {
 				t.Fatalf("unexpected parse error: %s", err)
 			}
 
-			if tc.error != nil && tc.error != err {
+			if tc.err != nil && tc.err != err {
 				t.Fatalf("expecting parsing error '%s'; got %v", ErrInvalidDuration, err)
 			}
 
