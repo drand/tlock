@@ -39,10 +39,6 @@ func run(log *log.Logger) error {
 		return fmt.Errorf("parse commands: %v", err)
 	}
 
-	if len(flag.Args()) != 1 {
-		return fmt.Errorf("expecing only one input but got %s", flag.Args())
-	}
-
 	var src io.Reader = os.Stdin
 	if name := flag.Arg(0); name != "" && name != "-" {
 		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
