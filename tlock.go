@@ -34,13 +34,13 @@ type Network interface {
 
 // =============================================================================
 
-// Encrypter provides an API for time lock encryption.
+// Tlock provides an API for time lock encryption and decryption.
 type Tlock struct {
 	network Network
 }
 
-// NewEncrypter constructs a tlock Encrypter for the specified network which
-// can encrypt data that can't be decrypted until the future.
+// New constructs a tlock for the specified network which can encrypt data that
+// can be decrypted until the future.
 func New(network Network) Tlock {
 	return Tlock{
 		network: network,
