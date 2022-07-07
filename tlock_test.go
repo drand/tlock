@@ -45,11 +45,8 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	// Enough duration to check for an non-existing beacon.
 	duration := 10 * time.Second
 
-	tl := tlock.NewEncrypter(network)
-
 	roundNumber := network.RoundNumber(time.Now().Add(duration))
-	err = tl.Encrypt(&cipherData, in, roundNumber)
-	if err != nil {
+	if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
 
@@ -60,7 +57,7 @@ func Test_EarlyDecryptionWithDuration(t *testing.T) {
 	var plainData bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = tlock.NewDecrypter(network).Decrypt(&plainData, &cipherData)
+	err = tlock.New(network).Decrypt(&plainData, &cipherData)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
@@ -88,9 +85,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	var cipherData bytes.Buffer
 	futureRound := network.RoundNumber(time.Now().Add(1 * time.Minute))
 
-	tl := tlock.NewEncrypter(network)
-	err = tl.Encrypt(&cipherData, in, futureRound)
-	if err != nil {
+	if err := tlock.New(network).Encrypt(&cipherData, in, futureRound); err != nil {
 		t.Fatalf("encrypt with round error %s", err)
 	}
 
@@ -101,7 +96,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	var plainData bytes.Buffer
 
 	// We DO NOT wait for the future beacon to exist.
-	err = tlock.NewDecrypter(network).Decrypt(&plainData, &cipherData)
+	err = tlock.New(network).Decrypt(&plainData, &cipherData)
 	if err == nil {
 		t.Fatal("expecting decrypt error")
 	}
@@ -137,11 +132,8 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	// Enough duration to check for an non-existing beacon.
 	duration := 4 * time.Second
 
-	tl := tlock.NewEncrypter(network)
-
 	roundNumber := network.RoundNumber(time.Now().Add(duration))
-	err = tl.Encrypt(&cipherData, in, roundNumber)
-	if err != nil {
+	if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
 
@@ -153,8 +145,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	// Write the decoded information to this buffer.
 	var plainData bytes.Buffer
 
-	err = tlock.NewDecrypter(network).Decrypt(&plainData, &cipherData)
-	if err != nil {
+	if err := tlock.New(network).Decrypt(&plainData, &cipherData); err != nil {
 		t.Fatalf("unexpected error %s", err)
 	}
 
@@ -187,7 +178,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	var cipherData bytes.Buffer
 
 	futureRound := network.RoundNumber(time.Now().Add(6 * time.Second))
-	if err := tlock.NewEncrypter(network).Encrypt(&cipherData, in, futureRound); err != nil {
+	if err := tlock.New(network).Encrypt(&cipherData, in, futureRound); err != nil {
 		t.Fatalf("encrypt with duration error %s", err)
 	}
 
@@ -199,8 +190,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Wait for the future beacon to exist.
 	time.Sleep(10 * time.Second)
 
-	err = tlock.NewDecrypter(network).Decrypt(&plainData, &cipherData)
-	if err != nil {
+	if err := tlock.New(network).Decrypt(&plainData, &cipherData); err != nil {
 		t.Fatalf("unexpected error %s", err)
 	}
 
@@ -217,8 +207,8 @@ func Test_TimeLockUnlock(t *testing.T) {
 
 	futureRound := network.RoundNumber(time.Now())
 
-	id, ready := network.IsReadyToDecrypt(futureRound)
-	if !ready {
+	id, err := network.Signature(futureRound)
+	if err != nil {
 		t.Fatalf("ready to decrypt error %s", err)
 	}
 

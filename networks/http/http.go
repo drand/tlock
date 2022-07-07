@@ -75,18 +75,18 @@ func (n *Network) PublicKey() kyber.Point {
 	return n.publicKey
 }
 
-// IsReadyToDecrypt makes a call to the network to validate it's time to decrypt
-// and if so, the required id is returned.
-func (n *Network) IsReadyToDecrypt(roundNumber uint64) ([]byte, bool) {
+// Signature makes a call to the network to retrieve the signature for the
+// specified round number.
+func (n *Network) Signature(roundNumber uint64) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	result, err := n.client.Get(ctx, roundNumber)
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 
-	return result.Signature(), true
+	return result.Signature(), nil
 }
 
 // RoundNumber will return the latest round of randomness that is available

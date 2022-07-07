@@ -16,7 +16,7 @@ import (
 // of an encoder for reading/writing to disk, a network for making calls to the
 // drand network, and an encrypter for encrypting/decrypting the data.
 func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) error {
-	tlock := tlock.NewEncrypter(network)
+	tlock := tlock.New(network)
 
 	if flags.Armor {
 		a := armor.NewWriter(dst)

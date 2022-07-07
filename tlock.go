@@ -29,27 +29,27 @@ var ErrTooEarly = errors.New("too early to decrypt")
 type Network interface {
 	ChainHash() string
 	PublicKey() kyber.Point
-	IsReadyToDecrypt(roundNumber uint64) (id []byte, ready bool)
+	Signature(roundNumber uint64) ([]byte, error)
 }
 
 // =============================================================================
 
 // Encrypter provides an API for time lock encryption.
-type Encrypter struct {
+type Tlock struct {
 	network Network
 }
 
 // NewEncrypter constructs a tlock Encrypter for the specified network which
 // can encrypt data that can't be decrypted until the future.
-func NewEncrypter(network Network) Encrypter {
-	return Encrypter{
+func New(network Network) Tlock {
+	return Tlock{
 		network: network,
 	}
 }
 
 // Encrypt will encrypt the source and write that to the destination. The encrypted
 // data will not be decryptable until the specified round is reached by the network.
-func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) (err error) {
+func (t Tlock) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) (err error) {
 	w, err := age.Encrypt(dst, &tleRecipient{network: t.network, roundNumber: roundNumber})
 	if err != nil {
 		return fmt.Errorf("age encrypt: %w", err)
@@ -68,25 +68,10 @@ func (t Encrypter) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) (er
 	return nil
 }
 
-// =============================================================================
-
-// Decrypter provides an API for time lock decryption.
-type Decrypter struct {
-	network Network
-}
-
-// NewDecrypter constructs a tlock Decrypter for the specified network which
-// can decrypt data that was encrypted by the Encrypter.
-func NewDecrypter(network Network) Decrypter {
-	return Decrypter{
-		network: network,
-	}
-}
-
 // Decrypt will decrypt the source and write that to the destination. The decrypted
 // data will not be decryptable unless the specified round from the encrypt call
 // is reached by the network.
-func (t Decrypter) Decrypt(dst io.Writer, src io.Reader) error {
+func (t Tlock) Decrypt(dst io.Writer, src io.Reader) error {
 	rr := bufio.NewReader(src)
 
 	if start, _ := rr.Peek(len(armor.Header)); string(start) == armor.Header {

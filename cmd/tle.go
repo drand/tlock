@@ -70,7 +70,7 @@ func run(log *log.Logger) error {
 
 	switch {
 	case flags.Decrypt:
-		return tlock.NewDecrypter(network).Decrypt(dst, src)
+		return tlock.New(network).Decrypt(dst, src)
 	default:
 		return commands.Encrypt(flags, dst, src, network)
 	}
