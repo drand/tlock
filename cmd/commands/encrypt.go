@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/networks/http"
 )
+
+var ErrInvalidDuration = errors.New("invalid duration unit")
 
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
@@ -38,7 +41,7 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 		return tlock.Encrypt(dst, src, flags.Round)
 
 	case flags.Duration != "":
-		duration, err := parseDuration(flags.Duration)
+		duration, err := parseDuration(time.Now(), flags.Duration)
 		if err != nil {
 			return err
 		}
@@ -51,7 +54,7 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 }
 
 // parseDuration parses the duration and can handle days, months, and years.
-func parseDuration(duration string) (time.Duration, error) {
+func parseDuration(t time.Time, duration string) (time.Duration, error) {
 	d, err := time.ParseDuration(duration)
 	if err == nil {
 		return d, nil
@@ -59,7 +62,7 @@ func parseDuration(duration string) (time.Duration, error) {
 
 	// M has to be capitalised to avoid conflict with minutes.
 	if !strings.ContainsAny(duration, "dMy") {
-		return time.Second, fmt.Errorf("unknown duration unit")
+		return time.Second, ErrInvalidDuration
 	}
 
 	now := time.Now()
