@@ -16,13 +16,22 @@ You can also spin up a new drand network and run your own, but notice that the s
 
 [![asciicast](https://asciinema.org/a/gueGlipdAIJlvXo2OI3XelYJ5.svg)](https://asciinema.org/a/gueGlipdAIJlvXo2OI3XelYJ5?autoplay=1&theme=monokai)
 
+## Table of Contents
+ - [Install the CLI](#install-the-cli)
+ - [Build it](#or-build-it)
+ - [CLI usage](#cli-usage)
+	- [Encryption](#cli-encryption)
+	- [Decryption](#cli-decryption)
+ - [Library usage](#library-usage)
+ - [Using with age CLI](#using-with-age-cli)
+
 ## Install the CLI
 
 ```bash
 go install github.com/drand/tlock/cmd@latest
 ```
 
-## Or Build it
+## Or build it
 
 ```bash
 go build cmd/tle.go
@@ -152,6 +161,22 @@ if err == nil {
 }
 
 // The buffer plainData now holds the plain data.
+```
+
+# Using with age CLI
+
+You can use the [age](https://github.com/FiloSottile/age) cli to encrypt your data with a password.
+
+```bash
+$ cat data.txt | age -p | tle -D 30s -o encrypted_data
+```
+
+age will ask you to enter a password or create one.
+
+To decrypt the data checking for the password:
+
+```bash
+$ cat encrypted_data | tle -d | age -d -o data.txt
 ```
 
 # License
