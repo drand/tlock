@@ -14,7 +14,9 @@ You can also spin up a new drand network and run your own, but notice that the s
 
 ## See how it works
 
-[![asciicast](https://asciinema.org/a/gueGlipdAIJlvXo2OI3XelYJ5.svg)](https://asciinema.org/a/gueGlipdAIJlvXo2OI3XelYJ5?autoplay=1&theme=monokai)
+<p align="center">
+	<img src="https://user-images.githubusercontent.com/181501/177999855-cc1cfef7-ee1c-4193-bea7-4ee2e689f2d1.svg"/>
+</p>
 
 ## Table of Contents
  - [Install the CLI](#install-the-cli)
