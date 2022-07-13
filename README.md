@@ -38,12 +38,12 @@ You can also spin up a new drand network and run your own, but notice that the s
 This tool is pure Go, it works without CGO (`CGO_ENABLED=0`)
 
 ```bash
-go install github.com/drand/tlock/cmd@latest
+go install github.com/drand/tlock/cmd/tle@latest
 ```
 
 ```bash
 git clone https://github.com/drand/tlock
-go build cmd/tle.go
+go build cmd/tle/tle.go
 ```
 
 ---
