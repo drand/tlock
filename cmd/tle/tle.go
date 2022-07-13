@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/drand/tlock"
-	"github.com/drand/tlock/cmd/commands"
+	"github.com/drand/tlock/cmd/tle/commands"
 	"github.com/drand/tlock/networks/http"
 )
 
