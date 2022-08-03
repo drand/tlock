@@ -5,9 +5,13 @@ tlock gives you time based encryption and decryption capabilities by relying on 
 Our timelock encryption system relies on an unchained drand network. Currently, the only publicly available one is the League of Entropy Testnet.
 However, it should soon also be available on the League's Mainnet.
 
-Working endpoints to access it are, for example:
+Working endpoints to access it are, for now:
 - https://pl-us.testnet.drand.sh/
 - https://testnet0-api.drand.cloudflare.com/
+
+Notice this is relying on the League of Entropy **Testnet**, which should not be considered secure. 
+A compatible League of Entropy Mainnet network is going to be launched in mid September, which can be considered secure.
+In the meantime, we recommend only using the Testnet network for development and testing purposes.
 
 You can also spin up a new drand network and run your own, but notice that the security guarantees boil down to the trust you can have in your network.
 
@@ -207,6 +211,9 @@ Note that you could do the same with PGP or any other encryption tool.
 --- 
 
 ### Security considerations
+
+Currently, this is relying on the League of Entropy **Testnet**, which should not be considered secure. 
+A compatible League of Entropy Mainnet network is going to be launched in mid September, which can be considered secure.
 
 The security of our timelock encryption mechanism relies on four main things:
 - The security of the underlying [Identity Encryption Scheme](https://crypto.stanford.edu/~dabo/pubs/papers/bfibe.pdf) (proposed in 2001) and [its implementation](https://github.com/drand/kyber/blob/a780ab21355ebe7f60b441a586d5e73a40c564eb/encrypt/ibe/ibe.go#L39-L47) that we're using.
