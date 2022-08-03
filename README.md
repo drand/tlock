@@ -1,6 +1,7 @@
 ## tlock: Timelock Encryption/Decryption Made Practical
 
-tlock gives you time based encryption and decryption capabilities by relying on a [drand](https://drand.love/) threshold network. It's also a Go library.
+tlock gives you time based encryption and decryption capabilities by relying on a [drand](https://drand.love/) threshold network.  
+It's also a Go library, which is used to implement the `tle` command line tool enabling anybody to leverage timelock encryption.
 
 Our timelock encryption system relies on an unchained drand network. Currently, the only publicly available one is the League of Entropy Testnet.
 However, it should soon also be available on the League's Mainnet.
