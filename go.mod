@@ -5,7 +5,7 @@ go 1.18
 require (
 	filippo.io/age v1.0.0
 	github.com/drand/drand v1.4.3-testnet
-	github.com/drand/kyber v1.1.12
+	github.com/drand/kyber v1.1.13
 	github.com/drand/kyber-bls12381 v0.2.2
 )
 
