@@ -51,7 +51,7 @@ func run(log *log.Logger) error {
 
 	var dst io.Writer = os.Stdout
 	if name := flags.Output; name != "" && name != "-" {
-		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR, 0644)
+		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
