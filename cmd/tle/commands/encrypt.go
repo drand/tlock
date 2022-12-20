@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"strconv"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 )
 
 var ErrInvalidDuration = errors.New("unsupported duration type - note: drand can only support as long as seconds")
+var ErrDurationOverflow = errors.New("the duration you entered is too large and would cause an overflow")
 var ErrInvalidDurationMultiplier = errors.New("errors must contain a multiplier, e.g. 1d not just d")
 
 // Encrypt performs the encryption operation. This requires the implementation
@@ -46,12 +46,16 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 		if err != nil {
 			return err
 		}
+		now := time.Now()
 		decryptionTime := durations.from(time.Now())
+		if decryptionTime.Before(now) {
+			return ErrDurationOverflow
+		}
 		roundNumber := network.RoundNumber(decryptionTime)
 		return tlock.Encrypt(dst, src, roundNumber)
+	default:
+		return errors.New("you must provide either duration or a round flag to encrypt")
 	}
-
-	return nil
 }
 
 type combinedDuration struct {
@@ -117,20 +121,21 @@ func parseDurations(input string) (combinedDuration, error) {
 }
 
 func parsePrecedingInt(input string) (int, string, error) {
-	preceding := 0
+	preceding := ""
+	finalChar := 0
+
 	for i := 0; i < len(input); i++ {
 		if input[i] < '0' || input[i] > '9' {
-			return preceding, input[i:], nil
+			finalChar = i
+			break
 		}
 
-		mantissa, err := strconv.Atoi(string(input[i]))
-		if err != nil {
-			return 0, input, err
-		}
-		exponent := int(math.Pow(float64(10), float64(i)))
-		preceding = preceding + mantissa*exponent
+		// just checked the value above
+		intChar, _ := strconv.Atoi(string(input[i]))
+		preceding = fmt.Sprintf("%s%d", preceding, intChar)
 	}
-	return preceding, "", nil
+	precedingInt, err := strconv.Atoi(preceding)
+	return precedingInt, input[finalChar:], err
 }
 
 type DurationMultiplier = int8

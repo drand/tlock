@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"bytes"
+	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 	"time"
 )
@@ -51,6 +54,13 @@ func Test_ParseDuration(t *testing.T) {
 			err:      nil,
 		},
 		{
+			name:     "multiDigitParsesCorrectly",
+			duration: "203m",
+			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
+			expected: time.Duration(203) * time.Minute,
+			err:      nil,
+		},
+		{
 			name:     "parseInvalid",
 			duration: "1C",
 			date:     time.Now(),
@@ -84,4 +94,31 @@ func Test_ParseDuration(t *testing.T) {
 
 		})
 	}
+}
+
+func TestEncryptionWithDurationOverflow(t *testing.T) {
+	flags := Flags{
+		Encrypt:  true,
+		Decrypt:  false,
+		Network:  defaultNetwork,
+		Chain:    defaultChain,
+		Round:    0,
+		Duration: "292277042628y",
+		Armor:    false,
+	}
+	err := Encrypt(flags, os.Stdout, bytes.NewBufferString("very nice"), nil)
+	require.ErrorIs(t, err, ErrDurationOverflow)
+}
+
+func TestEncryptionWithDurationOverflowUsingOtherUnits(t *testing.T) {
+	flags := Flags{
+		Encrypt:  true,
+		Decrypt:  false,
+		Network:  defaultNetwork,
+		Chain:    defaultChain,
+		Duration: "292277042627y12m1d",
+		Armor:    false,
+	}
+	err := Encrypt(flags, os.Stdout, bytes.NewBufferString("very nice"), nil)
+	require.ErrorIs(t, err, ErrDurationOverflow)
 }
