@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed" // Calls init function.
 	"errors"
+	bls "github.com/drand/kyber-bls12381"
 	"os"
 	"testing"
 	"time"
@@ -231,5 +232,17 @@ func Test_TimeLockUnlock(t *testing.T) {
 
 	if !bytes.Equal(data, b) {
 		t.Fatalf("unexpected bytes; expected len %d; got %d", len(data), len(b))
+	}
+}
+
+func TestCannotEncryptWithPointAtInfinity(t *testing.T) {
+	suite := bls.NewBLS12381Suite()
+	infinity := suite.G2().Scalar().Zero()
+	pointAtInfinity := suite.G2().Point().Mul(infinity, nil)
+
+	_, err := tlock.TimeLock(pointAtInfinity, 10, []byte("deadbeef"))
+
+	if err != tlock.ErrInvalidPublicKey {
+		t.Fatalf("expected error when encrypting with point at infinity")
 	}
 }
