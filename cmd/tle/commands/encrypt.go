@@ -12,8 +12,8 @@ import (
 	"github.com/drand/tlock/networks/http"
 )
 
-var ErrInvalidDuration = errors.New("unsupported duration type - note: drand can only support as long as seconds")
-var ErrDurationOverflow = errors.New("the duration you entered is too large and would cause an overflow")
+var ErrInvalidDurationType = errors.New("unsupported duration type - note: drand can only support as short as seconds")
+var ErrInvalidDurationValue = errors.New("the duration you entered is either in the past or was too large and would cause an overflow")
 var ErrInvalidDurationMultiplier = errors.New("must contain a multiplier, e.g. 1d not just d")
 
 // Encrypt performs the encryption operation. This requires the implementation
@@ -47,9 +47,9 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 			return err
 		}
 		now := time.Now()
-		decryptionTime := durations.from(time.Now())
-		if decryptionTime.Before(now) {
-			return ErrDurationOverflow
+		decryptionTime := durations.from(now)
+		if decryptionTime.Before(now) || decryptionTime.Equal(now) {
+			return ErrInvalidDurationValue
 		}
 		roundNumber := network.RoundNumber(decryptionTime)
 		return tlock.Encrypt(dst, src, roundNumber)
@@ -91,9 +91,9 @@ func (c *combinedDuration) from(someTime time.Time) time.Time {
 	return someTime.AddDate(
 		c.years, c.months, c.days+(c.weeks*7),
 	).Add(
-		c.minutes * time.Minute,
+		time.Duration(c.minutes) * time.Minute,
 	).Add(
-		c.seconds * time.Second,
+		time.Duration(c.seconds) * time.Second,
 	)
 }
 
@@ -106,7 +106,7 @@ func parseDurations(input string) (combinedDuration, error) {
 		}
 
 		ints, remainingInput, err := parsePrecedingInt(i)
-		if ints == 0 || err != nil {
+		if err != nil {
 			return combinedDuration{}, ErrInvalidDurationMultiplier
 		}
 
@@ -152,7 +152,7 @@ const (
 
 func parseNextDuration(input string) (DurationMultiplier, error) {
 	if input == "" {
-		return 0, ErrInvalidDuration
+		return 0, ErrInvalidDurationType
 	}
 
 	switch input[0] {
@@ -171,6 +171,6 @@ func parseNextDuration(input string) (DurationMultiplier, error) {
 	case 's':
 		return Second, nil
 	default:
-		return 0, ErrInvalidDuration
+		return 0, ErrInvalidDurationType
 	}
 }

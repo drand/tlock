@@ -19,58 +19,70 @@ func Test_ParseDuration(t *testing.T) {
 
 	tests := []test{
 		{
-			name:     "parseDay",
+			name:     "seconds are parsed correctly",
+			duration: "1s",
+			date:     time.Now(),
+			expected: 1 * time.Second,
+		},
+		{
+			name:     "days are parsed correctly",
 			duration: "1d",
 			date:     time.Now(),
 			expected: 24 * time.Hour,
-			err:      nil,
 		},
 		{
-			name:     "parseMonth",
+			name:     "months are parsed correctly",
 			duration: "1M",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
 			expected: time.Duration(31*24) * time.Hour,
-			err:      nil,
 		},
 		{
-			name:     "parseYear",
+			name:     "years are parsed correctly",
 			duration: "1y",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
 			expected: time.Duration(365*24) * time.Hour,
-			err:      nil,
 		},
 		{
-			name:     "parseMixed",
+			name:     "a mix of timespans parse successfuly",
 			duration: "1y1M1s",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
 			expected: time.Duration(365*24)*time.Hour + time.Duration(31*24)*time.Hour + time.Duration(1)*time.Second,
-			err:      nil,
 		},
 		{
-			name:     "parseMixedInAFunnyOrder",
+			name:     "a mix of timespans in a funny order parse successfully",
 			duration: "2s1y1M",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
 			expected: time.Duration(365*24)*time.Hour + time.Duration(31*24)*time.Hour + time.Duration(2)*time.Second,
-			err:      nil,
 		},
 		{
-			name:     "multiDigitParsesCorrectly",
+			name:     "times with multiple digits parse successfully",
 			duration: "203m",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
 			expected: time.Duration(203) * time.Minute,
-			err:      nil,
 		},
 		{
-			name:     "parseInvalid",
+			name:     "parsing an invalid timespan character fails",
 			duration: "1C",
 			date:     time.Now(),
-			err:      ErrInvalidDuration,
+			err:      ErrInvalidDurationType,
 		},
 		{
-			name:     "parseMissingMultiplier",
+			name:     "missing multipliers fails",
 			duration: "DM",
 			date:     time.Now(),
 			err:      ErrInvalidDurationMultiplier,
+		},
+		{
+			name:     "0 values are in the middle are allowed",
+			duration: "1y0M1m",
+			date:     time.Now(),
+			expected: time.Duration(365*24)*time.Hour + time.Duration(1)*time.Minute,
+		},
+		{
+			name:     "total of 0 should also be fine",
+			duration: "0s",
+			date:     time.Now(),
+			expected: 0 * time.Second,
 		},
 	}
 
@@ -82,7 +94,7 @@ func Test_ParseDuration(t *testing.T) {
 			}
 
 			if tc.err != nil && tc.err != err {
-				t.Fatalf("expecting parsing error '%s'; got %v", ErrInvalidDuration, err)
+				t.Fatalf("expecting parsing error '%s'; got %v", ErrInvalidDurationType, err)
 			}
 
 			expected := tc.date.Add(tc.expected)
@@ -107,7 +119,7 @@ func TestEncryptionWithDurationOverflow(t *testing.T) {
 		Armor:    false,
 	}
 	err := Encrypt(flags, os.Stdout, bytes.NewBufferString("very nice"), nil)
-	require.ErrorIs(t, err, ErrDurationOverflow)
+	require.ErrorIs(t, err, ErrInvalidDurationValue)
 }
 
 func TestEncryptionWithDurationOverflowUsingOtherUnits(t *testing.T) {
@@ -120,5 +132,5 @@ func TestEncryptionWithDurationOverflowUsingOtherUnits(t *testing.T) {
 		Armor:    false,
 	}
 	err := Encrypt(flags, os.Stdout, bytes.NewBufferString("very nice"), nil)
-	require.ErrorIs(t, err, ErrDurationOverflow)
+	require.ErrorIs(t, err, ErrInvalidDurationValue)
 }
