@@ -91,9 +91,9 @@ func (c *combinedDuration) from(someTime time.Time) time.Time {
 	return someTime.AddDate(
 		c.years, c.months, c.days+(c.weeks*7),
 	).Add(
-		time.Duration(int64(c.minutes)) * time.Minute,
+		c.minutes * time.Minute,
 	).Add(
-		time.Duration(int64(c.seconds)) * time.Second,
+		c.seconds * time.Second,
 	)
 }
 
