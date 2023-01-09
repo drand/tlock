@@ -14,7 +14,7 @@ import (
 
 var ErrInvalidDuration = errors.New("unsupported duration type - note: drand can only support as long as seconds")
 var ErrDurationOverflow = errors.New("the duration you entered is too large and would cause an overflow")
-var ErrInvalidDurationMultiplier = errors.New("errors must contain a multiplier, e.g. 1d not just d")
+var ErrInvalidDurationMultiplier = errors.New("must contain a multiplier, e.g. 1d not just d")
 
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
