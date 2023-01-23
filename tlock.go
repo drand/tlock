@@ -21,6 +21,7 @@ import (
 
 // ErrTooEarly represents an error when a decryption operation happens early.
 var ErrTooEarly = errors.New("too early to decrypt")
+var ErrInvalidPublicKey = errors.New("the public key received from the network to encrypt this was infinity and thus insecure")
 
 // =============================================================================
 
@@ -97,6 +98,10 @@ func (t Tlock) Decrypt(dst io.Writer, src io.Reader) error {
 // TimeLock encrypts the specified data for the given round number. The data
 // can't be decrypted until the specified round is reached by the network in use.
 func TimeLock(publicKey kyber.Point, roundNumber uint64, data []byte) (*ibe.Ciphertext, error) {
+	if publicKey.Equal(publicKey.Null()) {
+		return nil, ErrInvalidPublicKey
+	}
+
 	h := sha256.New()
 	if _, err := h.Write(chain.RoundToBytes(roundNumber)); err != nil {
 		return nil, fmt.Errorf("sha256 write: %w", err)
