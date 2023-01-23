@@ -21,7 +21,7 @@ func main() {
 		return
 	}
 
-	if err := run(log); err != nil {
+	if err := run(); err != nil {
 		switch {
 		case errors.Is(err, tlock.ErrTooEarly):
 			log.Fatal(tlock.ErrTooEarly)
@@ -33,7 +33,9 @@ func main() {
 	}
 }
 
-func run(log *log.Logger) error {
+func run() error {
+	var err error
+
 	flags, err := commands.Parse()
 	if err != nil {
 		return fmt.Errorf("parse commands: %v", err)
@@ -45,7 +47,9 @@ func run(log *log.Logger) error {
 		if err != nil {
 			return fmt.Errorf("failed to open input file %q: %v", name, err)
 		}
-		defer f.Close()
+		defer func(f *os.File) {
+			err = f.Close()
+		}(f)
 		src = f
 	}
 
@@ -55,7 +59,9 @@ func run(log *log.Logger) error {
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
-		defer f.Close()
+		defer func(f *os.File) {
+			err = f.Close()
+		}(f)
 		dst = f
 	}
 
@@ -66,8 +72,10 @@ func run(log *log.Logger) error {
 
 	switch {
 	case flags.Decrypt:
-		return tlock.New(network).Decrypt(dst, src)
+		err = tlock.New(network).Decrypt(dst, src)
 	default:
-		return commands.Encrypt(flags, dst, src, network)
+		err = commands.Encrypt(flags, dst, src, network)
 	}
+
+	return err
 }

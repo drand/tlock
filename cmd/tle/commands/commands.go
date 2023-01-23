@@ -80,7 +80,10 @@ func Parse() (Flags, error) {
 		Duration: defaultDuration,
 	}
 
-	envconfig.Process("tle", &f)
+	err := envconfig.Process("tle", &f)
+	if err != nil {
+		return f, err
+	}
 	parseCmdline(&f)
 
 	if err := validateFlags(f); err != nil {
@@ -92,7 +95,7 @@ func Parse() (Flags, error) {
 
 // parseCmdline will parse all the command line flags.
 // The default value is set to the values parsed by the environment variables.
-func parseCmdline(f *Flags) *Flags {
+func parseCmdline(f *Flags) {
 	flag.BoolVar(&f.Encrypt, "e", f.Encrypt, "encrypt the input to the output")
 	flag.BoolVar(&f.Encrypt, "encrypt", f.Encrypt, "encrypt the input to the output")
 
@@ -118,8 +121,6 @@ func parseCmdline(f *Flags) *Flags {
 	flag.BoolVar(&f.Armor, "armor", f.Armor, "encrypt to a PEM encoded format")
 
 	flag.Parse()
-
-	return f
 }
 
 // validateFlags performs a sanity check of the provided flag information.
