@@ -71,19 +71,19 @@ type combinedDuration struct {
 func (c *combinedDuration) apply(value int, multiplier DurationMultiplier) {
 	switch multiplier {
 	case Second:
-		c.seconds = c.seconds + value
+		c.seconds = value
 	case Minute:
-		c.minutes = c.minutes + value
+		c.minutes = value
 	case Hour:
-		c.hours = c.hours + value
+		c.hours = value
 	case Day:
-		c.days = c.days + value
+		c.days = value
 	case Week:
-		c.weeks = c.weeks + value
+		c.weeks = value
 	case Month:
-		c.months = c.months + value
+		c.months = value
 	case Year:
-		c.years = c.years + value
+		c.years = value
 	}
 }
 

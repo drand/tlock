@@ -34,31 +34,31 @@ func Test_ParseDuration(t *testing.T) {
 			name:     "months are parsed correctly",
 			duration: "1M",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
-			expected: time.Duration(31*24) * time.Hour,
+			expected: 31 * 24 * time.Hour,
 		},
 		{
 			name:     "years are parsed correctly",
 			duration: "1y",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
-			expected: time.Duration(365*24) * time.Hour,
+			expected: 365 * 24 * time.Hour,
 		},
 		{
 			name:     "a mix of timespans parse successfuly",
 			duration: "1y1M1s",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
-			expected: time.Duration(365*24)*time.Hour + time.Duration(31*24)*time.Hour + time.Duration(1)*time.Second,
+			expected: 365*24*time.Hour + 31*24*time.Hour + 1*time.Second,
 		},
 		{
 			name:     "a mix of timespans in a funny order parse successfully",
 			duration: "2s1y1M",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
-			expected: time.Duration(365*24)*time.Hour + time.Duration(31*24)*time.Hour + time.Duration(2)*time.Second,
+			expected: 365*24*time.Hour + 31*24*time.Hour + 2*time.Second,
 		},
 		{
 			name:     "times with multiple digits parse successfully",
 			duration: "203m",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
-			expected: time.Duration(203) * time.Minute,
+			expected: 203 * time.Minute,
 		},
 		{
 			name:     "parsing an invalid timespan character fails",
@@ -76,13 +76,25 @@ func Test_ParseDuration(t *testing.T) {
 			name:     "0 values are in the middle are allowed",
 			duration: "1y0M1m",
 			date:     time.Now(),
-			expected: time.Duration(365*24)*time.Hour + time.Duration(1)*time.Minute,
+			expected: 365*24*time.Hour + 1*time.Minute,
 		},
 		{
 			name:     "total of 0 should also be fine",
 			duration: "0s",
 			date:     time.Now(),
 			expected: 0 * time.Second,
+		},
+		{
+			name:     "where characters are repeated, the last one wins",
+			duration: "3s2s1s",
+			date:     time.Now(),
+			expected: 1 * time.Second,
+		},
+		{
+			name:     "where characters are repeated, the last one wins even if there are others in the way",
+			duration: "3s2s1d1s",
+			date:     time.Now(),
+			expected: 24*time.Hour + 1*time.Second,
 		},
 	}
 
