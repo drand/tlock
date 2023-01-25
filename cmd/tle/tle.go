@@ -43,7 +43,7 @@ func run() error {
 
 	var src io.Reader = os.Stdin
 	if name := flag.Arg(0); name != "" && name != "-" {
-		f, err := os.OpenFile(name, os.O_RDONLY, 0644)
+		f, err := os.OpenFile(name, os.O_RDONLY, 0600)
 		if err != nil {
 			return fmt.Errorf("failed to open input file %q: %v", name, err)
 		}
@@ -55,7 +55,7 @@ func run() error {
 
 	var dst io.Writer = os.Stdout
 	if name := flags.Output; name != "" && name != "-" {
-		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
+		f, err := os.OpenFile(name, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0600)
 		if err != nil {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
