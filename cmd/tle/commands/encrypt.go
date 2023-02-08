@@ -68,23 +68,47 @@ type combinedDuration struct {
 	years   int
 }
 
-func (c *combinedDuration) apply(value int, multiplier DurationMultiplier) {
+var ErrDuplicateDuration = errors.New("you cannot use the same duration unit specifier twice in one duration")
+
+func (c *combinedDuration) apply(value int, multiplier DurationMultiplier) error {
 	switch multiplier {
 	case Second:
+		if c.seconds != 0 {
+			return ErrDuplicateDuration
+		}
 		c.seconds = value
 	case Minute:
+		if c.minutes != 0 {
+			return ErrDuplicateDuration
+		}
 		c.minutes = value
 	case Hour:
+		if c.hours != 0 {
+			return ErrDuplicateDuration
+		}
 		c.hours = value
 	case Day:
+		if c.days != 0 {
+			return ErrDuplicateDuration
+		}
 		c.days = value
 	case Week:
+		if c.weeks != 0 {
+			return ErrDuplicateDuration
+		}
 		c.weeks = value
 	case Month:
+		if c.months != 0 {
+			return ErrDuplicateDuration
+		}
 		c.months = value
 	case Year:
+		if c.years != 0 {
+			return ErrDuplicateDuration
+		}
 		c.years = value
 	}
+	return nil
 }
 
 func (c *combinedDuration) from(someTime time.Time) time.Time {
@@ -116,7 +140,10 @@ func parseDurations(input string) (combinedDuration, error) {
 		}
 
 		i = remainingInput[1:]
-		out.apply(ints, duration)
+		err = out.apply(ints, duration)
+		if err != nil {
+			return combinedDuration{}, err
+		}
 	}
 }
 

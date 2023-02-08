@@ -85,16 +85,10 @@ func Test_ParseDuration(t *testing.T) {
 			expected: 0 * time.Second,
 		},
 		{
-			name:     "where characters are repeated, the last one wins",
-			duration: "3s2s1s",
-			date:     time.Now(),
-			expected: 1 * time.Second,
-		},
-		{
-			name:     "where characters are repeated, the last one wins even if there are others in the way",
+			name:     "if characters are repeated, an error is returned",
 			duration: "3s2s1d1s",
 			date:     time.Now(),
-			expected: 24*time.Hour + 1*time.Second,
+			err:      ErrDuplicateDuration,
 		},
 	}
 
