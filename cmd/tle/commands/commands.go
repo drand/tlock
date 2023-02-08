@@ -13,9 +13,8 @@ import (
 
 // Default settings.
 const (
-	defaultNetwork  = "http://pl-us.testnet.drand.sh/"
-	defaultChain    = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
-	defaultDuration = "120d"
+	defaultNetwork = "http://pl-us.testnet.drand.sh/"
+	defaultChain   = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
 )
 
 // =============================================================================
@@ -48,7 +47,7 @@ Example:
     $ ./tle -D 10d -o encrypted_file data_to_encrypt
 
 After the specified duration:
-    $ ./tle -d -o dencrypted_file.txt encrypted_file`
+    $ ./tle -d -o decrypted_file.txt encrypted_file`
 
 // PrintUsage displays the usage information.
 func PrintUsage(log *log.Logger) {
@@ -75,9 +74,8 @@ func Parse() (Flags, error) {
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
 	f := Flags{
-		Network:  defaultNetwork,
-		Chain:    defaultChain,
-		Duration: defaultDuration,
+		Network: defaultNetwork,
+		Chain:   defaultChain,
 	}
 
 	err := envconfig.Process("tle", &f)
@@ -86,7 +84,7 @@ func Parse() (Flags, error) {
 	}
 	parseCmdline(&f)
 
-	if err := validateFlags(f); err != nil {
+	if err := validateFlags(&f); err != nil {
 		return Flags{}, err
 	}
 
@@ -124,14 +122,17 @@ func parseCmdline(f *Flags) {
 }
 
 // validateFlags performs a sanity check of the provided flag information.
-func validateFlags(f Flags) error {
+func validateFlags(f *Flags) error {
 	switch {
 	case f.Decrypt:
 		if f.Encrypt {
 			return fmt.Errorf("-e/--encrypt can't be used with -d/--decrypt")
 		}
-		if f.Duration != defaultDuration {
+		if f.Duration != "" {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
+		}
+		if f.Round != 0 {
+			return fmt.Errorf("-r/--round can't be used with -d/--decrypt")
 		}
 		if f.Armor {
 			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
@@ -141,7 +142,7 @@ func validateFlags(f Flags) error {
 		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")
 		}
-		if f.Duration != defaultDuration && f.Round != 0 {
+		if f.Duration != "" && f.Round != 0 {
 			return fmt.Errorf("-D/--duration can't be used with -r/--round")
 		}
 		if f.Duration == "" && f.Round == 0 {
