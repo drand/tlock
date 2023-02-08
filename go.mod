@@ -5,14 +5,14 @@ go 1.18
 require (
 	filippo.io/age v1.1.1
 	github.com/drand/drand v1.4.8
-	github.com/drand/kyber v1.1.17
+	github.com/drand/kyber v1.1.18
 	github.com/drand/kyber-bls12381 v0.2.5
 	github.com/stretchr/testify v1.8.1
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
