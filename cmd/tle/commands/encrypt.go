@@ -117,6 +117,8 @@ func (c *combinedDuration) from(someTime time.Time) time.Time {
 	).Add(
 		time.Duration(c.minutes) * time.Minute,
 	).Add(
+		time.Duration(c.hours) * time.Hour,
+	).Add(
 		time.Duration(c.seconds) * time.Second,
 	)
 }
