@@ -25,6 +25,12 @@ func Test_ParseDuration(t *testing.T) {
 			expected: 1 * time.Second,
 		},
 		{
+			name:     "hours are parsed correctly",
+			duration: "1h",
+			date:     time.Now(),
+			expected: 1 * time.Hour,
+		},
+		{
 			name:     "days are parsed correctly",
 			duration: "1d",
 			date:     time.Now(),
