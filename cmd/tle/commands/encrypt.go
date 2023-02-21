@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -12,9 +13,8 @@ import (
 	"github.com/drand/tlock/networks/http"
 )
 
-var ErrInvalidDurationType = errors.New("unsupported duration type - note: drand can only support as short as seconds")
+var ErrInvalidDurationFormat = errors.New("unsupported duration type or malformed duration - note: drand can only support as short as seconds")
 var ErrInvalidDurationValue = errors.New("the duration you entered is either in the past or was too large and would cause an overflow")
-var ErrInvalidDurationMultiplier = errors.New("must contain a multiplier, e.g. 1d not just d")
 
 // Encrypt performs the encryption operation. This requires the implementation
 // of an encoder for reading/writing to disk, a network for making calls to the
@@ -42,15 +42,17 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 		return tlock.Encrypt(dst, src, flags.Round)
 
 	case flags.Duration != "":
-		durations, err := parseDurations(flags.Duration)
+		start := time.Now()
+		totalDuration, err := parseDurationsAsSeconds(start, flags.Duration)
 		if err != nil {
 			return err
 		}
-		now := time.Now()
-		decryptionTime := durations.from(now)
-		if decryptionTime.Before(now) || decryptionTime.Equal(now) {
+
+		decryptionTime := start.Add(time.Duration(totalDuration) * time.Second)
+		if decryptionTime.Before(start) || decryptionTime.Equal(start) {
 			return ErrInvalidDurationValue
 		}
+
 		roundNumber := network.RoundNumber(decryptionTime)
 		return tlock.Encrypt(dst, src, roundNumber)
 	default:
@@ -58,148 +60,63 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 	}
 }
 
-type combinedDuration struct {
-	seconds int
-	minutes int
-	hours   int
-	weeks   int
-	days    int
-	months  int
-	years   int
-}
-
 var ErrDuplicateDuration = errors.New("you cannot use the same duration unit specifier twice in one duration")
 
-func (c *combinedDuration) apply(value int, multiplier DurationMultiplier) error {
-	switch multiplier {
-	case Second:
-		if c.seconds != 0 {
-			return ErrDuplicateDuration
-		}
-		c.seconds = value
-	case Minute:
-		if c.minutes != 0 {
-			return ErrDuplicateDuration
-		}
-		c.minutes = value
-	case Hour:
-		if c.hours != 0 {
-			return ErrDuplicateDuration
-		}
-		c.hours = value
-	case Day:
-		if c.days != 0 {
-			return ErrDuplicateDuration
-		}
-		c.days = value
-	case Week:
-		if c.weeks != 0 {
-			return ErrDuplicateDuration
-		}
-		c.weeks = value
-	case Month:
-		if c.months != 0 {
-			return ErrDuplicateDuration
-		}
-		c.months = value
-	case Year:
-		if c.years != 0 {
-			return ErrDuplicateDuration
-		}
-		c.years = value
+func parseDurationsAsSeconds(start time.Time, input string) (float64, error) {
+	totalDuration := 0.0
+	durations := "smhMdwy"
+
+	// first we check that there are no extra characters or malformed groups
+	valid, err := regexp.Compile(fmt.Sprintf("^([0-9]+[%s]{1})+$", durations))
+	if err != nil {
+		return 0, err
 	}
-	return nil
-}
+	if len(valid.FindAll([]byte(input), -1)) != 1 {
+		return 0, ErrInvalidDurationFormat
+	}
 
-func (c *combinedDuration) from(someTime time.Time) time.Time {
-	return someTime.AddDate(
-		c.years, c.months, c.days+(c.weeks*7),
-	).Add(
-		time.Duration(c.minutes) * time.Minute,
-	).Add(
-		time.Duration(c.hours) * time.Hour,
-	).Add(
-		time.Duration(c.seconds) * time.Second,
-	)
-}
-
-func parseDurations(input string) (combinedDuration, error) {
-	out := combinedDuration{}
-	i := input
-	for {
-		if i == "" {
-			return out, nil
-		}
-
-		ints, remainingInput, err := parsePrecedingInt(i)
+	// then we iterate through each duration unit and combine them to seconds
+	for _, timeUnit := range durations {
+		r, err := regexp.Compile(fmt.Sprintf("[0-9]+%c", timeUnit))
 		if err != nil {
-			return combinedDuration{}, ErrInvalidDurationMultiplier
+			return 0, err
+		}
+		matches := r.FindAll([]byte(input), -1)
+		if len(matches) > 1 {
+			return 0, ErrDuplicateDuration
+		}
+		if len(matches) == 0 {
+			continue
 		}
 
-		duration, err := parseNextDuration(remainingInput)
+		match := matches[0]
+		durationLength, err := strconv.Atoi(string(match[0 : len(match)-1]))
 		if err != nil {
-			return combinedDuration{}, err
+			return 0, err
 		}
 
-		i = remainingInput[1:]
-		err = out.apply(ints, duration)
-		if err != nil {
-			return combinedDuration{}, err
-		}
+		totalDuration += durationFrom(start, durationLength, timeUnit)
 	}
+
+	return totalDuration, nil
 }
 
-func parsePrecedingInt(input string) (int, string, error) {
-	preceding := ""
-	finalChar := 0
-
-	for i := 0; i < len(input); i++ {
-		if input[i] < '0' || input[i] > '9' {
-			finalChar = i
-			break
-		}
-
-		// just checked the value above
-		intChar, _ := strconv.Atoi(string(input[i]))
-		preceding = fmt.Sprintf("%s%d", preceding, intChar)
-	}
-	precedingInt, err := strconv.Atoi(preceding)
-	return precedingInt, input[finalChar:], err
-}
-
-type DurationMultiplier = int8
-
-const (
-	Second DurationMultiplier = iota
-	Minute
-	Hour
-	Day
-	Week
-	Month
-	Year
-)
-
-func parseNextDuration(input string) (DurationMultiplier, error) {
-	if input == "" {
-		return 0, ErrInvalidDurationType
-	}
-
-	switch input[0] {
-	case 'y':
-		return Year, nil
-	case 'M':
-		return Month, nil
-	case 'w':
-		return Week, nil
-	case 'd':
-		return Day, nil
-	case 'h':
-		return Hour, nil
-	case 'm':
-		return Minute, nil
+func durationFrom(start time.Time, value int, duration rune) float64 {
+	switch duration {
 	case 's':
-		return Second, nil
-	default:
-		return 0, ErrInvalidDurationType
+		return (time.Duration(value) * time.Second).Seconds()
+	case 'm':
+		return (time.Duration(value) * time.Minute).Seconds()
+	case 'h':
+		return (time.Duration(value) * time.Hour).Seconds()
+	case 'd':
+		return start.AddDate(0, 0, value).Sub(start).Seconds()
+	case 'w':
+		return start.AddDate(0, 0, value*7).Sub(start).Seconds()
+	case 'M':
+		return start.AddDate(0, value, 0).Sub(start).Seconds()
+	case 'y':
+		return start.AddDate(value, 0, 0).Sub(start).Seconds()
 	}
+	return 0
 }
