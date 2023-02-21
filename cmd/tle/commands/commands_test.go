@@ -110,7 +110,7 @@ func Test_ParseDuration(t *testing.T) {
 			}
 
 			expected := tc.date.Add(tc.expected)
-			result := tc.date.Add(time.Duration(seconds) * time.Second)
+			result := tc.date.Add(seconds)
 
 			if !result.Equal(tc.date.Add(tc.expected)) {
 				t.Fatalf("expecting end time %s; got %s", expected, result)

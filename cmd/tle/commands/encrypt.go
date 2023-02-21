@@ -48,7 +48,7 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 			return err
 		}
 
-		decryptionTime := start.Add(time.Duration(totalDuration) * time.Second)
+		decryptionTime := start.Add(totalDuration)
 		if decryptionTime.Before(start) || decryptionTime.Equal(start) {
 			return ErrInvalidDurationValue
 		}
@@ -62,8 +62,8 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 
 var ErrDuplicateDuration = errors.New("you cannot use the same duration unit specifier twice in one duration")
 
-func parseDurationsAsSeconds(start time.Time, input string) (float64, error) {
-	totalDuration := 0.0
+func parseDurationsAsSeconds(start time.Time, input string) (time.Duration, error) {
+	totalDuration := time.Duration(0)
 	durations := "smhMdwy"
 
 	// first we check that there are no extra characters or malformed groups
@@ -98,25 +98,25 @@ func parseDurationsAsSeconds(start time.Time, input string) (float64, error) {
 		totalDuration += durationFrom(start, durationLength, timeUnit)
 	}
 
-	return totalDuration, nil
+	return time.Duration(totalDuration), nil
 }
 
-func durationFrom(start time.Time, value int, duration rune) float64 {
+func durationFrom(start time.Time, value int, duration rune) time.Duration {
 	switch duration {
 	case 's':
-		return (time.Duration(value) * time.Second).Seconds()
+		return time.Duration(value) * time.Second
 	case 'm':
-		return (time.Duration(value) * time.Minute).Seconds()
+		return time.Duration(value) * time.Minute
 	case 'h':
-		return (time.Duration(value) * time.Hour).Seconds()
+		return time.Duration(value) * time.Hour
 	case 'd':
-		return start.AddDate(0, 0, value).Sub(start).Seconds()
+		return start.AddDate(0, 0, value).Sub(start)
 	case 'w':
-		return start.AddDate(0, 0, value*7).Sub(start).Seconds()
+		return start.AddDate(0, 0, value*7).Sub(start)
 	case 'M':
-		return start.AddDate(0, value, 0).Sub(start).Seconds()
+		return start.AddDate(0, value, 0).Sub(start)
 	case 'y':
-		return start.AddDate(value, 0, 0).Sub(start).Seconds()
+		return start.AddDate(value, 0, 0).Sub(start)
 	}
 	return 0
 }
