@@ -75,7 +75,7 @@ func parseDurationsAsSeconds(start time.Time, input string) (time.Duration, erro
 		return 0, ErrInvalidDurationFormat
 	}
 
-	// then we iterate through each duration unit and combine them to seconds
+	// then we iterate through each duration unit and combine them into one
 	for _, timeUnit := range durations {
 		r, err := regexp.Compile(fmt.Sprintf("[0-9]+%c", timeUnit))
 		if err != nil {
@@ -98,7 +98,7 @@ func parseDurationsAsSeconds(start time.Time, input string) (time.Duration, erro
 		totalDuration += durationFrom(start, durationLength, timeUnit)
 	}
 
-	return time.Duration(totalDuration), nil
+	return totalDuration, nil
 }
 
 func durationFrom(start time.Time, value int, duration rune) time.Duration {
