@@ -63,11 +63,10 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 var ErrDuplicateDuration = errors.New("you cannot use the same duration unit specifier twice in one duration")
 
 func parseDurationsAsSeconds(start time.Time, input string) (time.Duration, error) {
-	totalDuration := time.Duration(0)
-	durations := "smhMdwy"
+	timeUnits := "smhMdwy"
 
 	// first we check that there are no extra characters or malformed groups
-	valid, err := regexp.Compile(fmt.Sprintf("^([0-9]+[%s]{1})+$", durations))
+	valid, err := regexp.Compile(fmt.Sprintf("^([0-9]+[%s]{1})+$", timeUnits))
 	if err != nil {
 		return 0, err
 	}
@@ -76,7 +75,8 @@ func parseDurationsAsSeconds(start time.Time, input string) (time.Duration, erro
 	}
 
 	// then we iterate through each duration unit and combine them into one
-	for _, timeUnit := range durations {
+	totalDuration := time.Duration(0)
+	for _, timeUnit := range timeUnits {
 		r, err := regexp.Compile(fmt.Sprintf("[0-9]+%c", timeUnit))
 		if err != nil {
 			return 0, err
