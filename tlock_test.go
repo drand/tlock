@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed" // Calls init function.
 	"errors"
+	"github.com/drand/drand/crypto"
 	bls "github.com/drand/kyber-bls12381"
 	"os"
 	"testing"
@@ -20,55 +21,59 @@ var (
 )
 
 const (
-	testnetHost      = "http://pl-us.testnet.drand.sh/"
+	testnetHost      = "https://pl-us.testnet.drand.sh/"
 	testnetChainHash = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+	mainnetHost      = "https://api.drand.sh/"
+	mainnetChainHash = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 )
 
-func Test_EarlyDecryptionWithDuration(t *testing.T) {
-	network, err := http.NewNetwork(testnetHost, testnetChainHash)
-	if err != nil {
-		t.Fatalf("network error %s", err)
-	}
+func TestEarlyDecryptionWithDuration(t *testing.T) {
+	for host, hash := range map[string]string{testnetHost: testnetChainHash, mainnetHost: mainnetChainHash} {
+		network, err := http.NewNetwork(host, hash)
+		if err != nil {
+			t.Fatalf("network error %s", err)
+		}
 
-	// =========================================================================
-	// Encrypt
+		// =========================================================================
+		// Encrypt
 
-	// Read the plaintext data to be encrypted.
-	in, err := os.Open("test_artifacts/data.txt")
-	if err != nil {
-		t.Fatalf("reader error %s", err)
-	}
-	defer in.Close()
+		// Read the plaintext data to be encrypted.
+		in, err := os.Open("test_artifacts/data.txt")
+		if err != nil {
+			t.Fatalf("reader error %s", err)
+		}
+		defer in.Close()
 
-	// Write the encoded information to this buffer.
-	var cipherData bytes.Buffer
+		// Write the encoded information to this buffer.
+		var cipherData bytes.Buffer
 
-	// Enough duration to check for an non-existing beacon.
-	duration := 10 * time.Second
+		// Enough duration to check for a non-existing beacon.
+		duration := 10 * time.Second
 
-	roundNumber := network.RoundNumber(time.Now().Add(duration))
-	if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
-		t.Fatalf("encrypt with duration error %s", err)
-	}
+		roundNumber := network.RoundNumber(time.Now().Add(duration))
+		if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
+			t.Fatalf("encrypt with duration error %s", err)
+		}
 
-	// =========================================================================
-	// Decrypt
+		// =========================================================================
+		// Decrypt
 
-	// Write the decoded information to this buffer.
-	var plainData bytes.Buffer
+		// Write the decoded information to this buffer.
+		var plainData bytes.Buffer
 
-	// We DO NOT wait for the future beacon to exist.
-	err = tlock.New(network).Decrypt(&plainData, &cipherData)
-	if err == nil {
-		t.Fatal("expecting decrypt error")
-	}
+		// We DO NOT wait for the future beacon to exist.
+		err = tlock.New(network).Decrypt(&plainData, &cipherData)
+		if err == nil {
+			t.Fatal("expecting decrypt error")
+		}
 
-	if !errors.Is(err, tlock.ErrTooEarly) {
-		t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
+		if !errors.Is(err, tlock.ErrTooEarly) {
+			t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
+		}
 	}
 }
 
-func Test_EarlyDecryptionWithRound(t *testing.T) {
+func TestEarlyDecryptionWithRound(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetChainHash)
 	if err != nil {
 		t.Fatalf("network error %s", err)
@@ -107,7 +112,7 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 	}
 }
 
-func Test_EncryptionWithDuration(t *testing.T) {
+func TestEncryptionWithDuration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping testing in short mode")
 	}
@@ -130,7 +135,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	// Enough duration to check for an non-existing beacon.
+	// Enough duration to check for a non-existing beacon.
 	duration := 4 * time.Second
 
 	roundNumber := network.RoundNumber(time.Now().Add(duration))
@@ -155,7 +160,7 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	}
 }
 
-func Test_EncryptionWithRound(t *testing.T) {
+func TestEncryptionWithRound(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping testing in short mode")
 	}
@@ -200,7 +205,7 @@ func Test_EncryptionWithRound(t *testing.T) {
 	}
 }
 
-func Test_TimeLockUnlock(t *testing.T) {
+func TestTimeLockUnlock(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetChainHash)
 	if err != nil {
 		t.Fatalf("network error %s", err)
@@ -215,7 +220,7 @@ func Test_TimeLockUnlock(t *testing.T) {
 
 	data := []byte(`anything`)
 
-	cipherText, err := tlock.TimeLock(network.PublicKey(), futureRound, data)
+	cipherText, err := tlock.TimeLock(network.Scheme(), network.PublicKey(), futureRound, data)
 	if err != nil {
 		t.Fatalf("timelock error %s", err)
 	}
@@ -225,7 +230,7 @@ func Test_TimeLockUnlock(t *testing.T) {
 		Signature: id,
 	}
 
-	b, err := tlock.TimeUnlock(network.PublicKey(), beacon, cipherText)
+	b, err := tlock.TimeUnlock(network.Scheme(), network.PublicKey(), beacon, cipherText)
 	if err != nil {
 		t.Fatalf("timeunlock error %s", err)
 	}
@@ -237,12 +242,26 @@ func Test_TimeLockUnlock(t *testing.T) {
 
 func TestCannotEncryptWithPointAtInfinity(t *testing.T) {
 	suite := bls.NewBLS12381Suite()
-	infinity := suite.G2().Scalar().Zero()
-	pointAtInfinity := suite.G2().Point().Mul(infinity, nil)
+	t.Run("on G2", func(t *testing.T) {
+		infinity := suite.G2().Scalar().Zero()
+		pointAtInfinity := suite.G2().Point().Mul(infinity, nil)
 
-	_, err := tlock.TimeLock(pointAtInfinity, 10, []byte("deadbeef"))
+		_, err := tlock.TimeLock(*crypto.NewPedersenBLSUnchainedSwapped(), pointAtInfinity, 10, []byte("deadbeef"))
 
-	if err != tlock.ErrInvalidPublicKey {
-		t.Fatalf("expected error when encrypting with point at infinity")
-	}
+		if err != tlock.ErrInvalidPublicKey {
+			t.Fatalf("expected error when encrypting with point at infinity")
+		}
+	})
+
+	t.Run("on G1", func(t *testing.T) {
+		infinity := suite.G1().Scalar().Zero()
+		pointAtInfinity := suite.G1().Point().Mul(infinity, nil)
+
+		_, err := tlock.TimeLock(*crypto.NewPedersenBLSUnchained(), pointAtInfinity, 10, []byte("deadbeef"))
+
+		if err != tlock.ErrInvalidPublicKey {
+			t.Fatalf("expected error when encrypting with point at infinity")
+		}
+	})
+
 }

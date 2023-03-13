@@ -6,13 +6,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/drand/drand/crypto"
+	"log"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/drand/drand/client"
 	dhttp "github.com/drand/drand/client/http"
-	"github.com/drand/drand/common/scheme"
 	"github.com/drand/kyber"
 )
 
@@ -30,10 +33,19 @@ type Network struct {
 	chainHash string
 	client    client.Client
 	publicKey kyber.Point
+	scheme    crypto.Scheme
 }
 
 // NewNetwork constructs a network for use that will use the http client.
 func NewNetwork(host string, chainHash string) (*Network, error) {
+	if !strings.HasPrefix(host, "http") {
+		host = "https://" + host
+	}
+	_, err := url.Parse(host + "/" + chainHash)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	hash, err := hex.DecodeString(chainHash)
 	if err != nil {
 		return nil, fmt.Errorf("decoding chain hash: %w", err)
@@ -52,7 +64,12 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		return nil, fmt.Errorf("getting client information: %w", err)
 	}
 
-	if info.Scheme.ID != scheme.UnchainedSchemeID {
+	sch, err := crypto.SchemeFromName(info.Scheme)
+	if err != nil {
+		return nil, ErrNotUnchained
+	}
+
+	if !(sch.Name == crypto.UnchainedSchemeID || sch.Name == crypto.ShortSigSchemeID) {
 		return nil, ErrNotUnchained
 	}
 
@@ -60,6 +77,7 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		chainHash: chainHash,
 		client:    client,
 		publicKey: info.PublicKey,
+		scheme:    *sch,
 	}
 
 	return &network, nil
@@ -73,6 +91,11 @@ func (n *Network) ChainHash() string {
 // PublicKey returns the kyber point needed for encryption and decryption.
 func (n *Network) PublicKey() kyber.Point {
 	return n.publicKey
+}
+
+// Scheme returns the drand crypto Scheme used by the network.
+func (n *Network) Scheme() crypto.Scheme {
+	return n.scheme
 }
 
 // Signature makes a call to the network to retrieve the signature for the

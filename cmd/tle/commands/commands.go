@@ -13,8 +13,8 @@ import (
 
 // Default settings.
 const (
-	defaultNetwork = "http://pl-us.testnet.drand.sh/"
-	defaultChain   = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+	defaultNetwork = "https://api.drand.sh/"
+	defaultChain   = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 )
 
 // =============================================================================
@@ -136,6 +136,9 @@ func validateFlags(f *Flags) error {
 		}
 		if f.Armor {
 			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
+		}
+		if f.Network != defaultNetwork && f.Chain == defaultChain {
+			return fmt.Errorf("-c/--chain needs to be specified when using a custom network endpoint")
 		}
 
 	default:

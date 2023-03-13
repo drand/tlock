@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func Test_ParseDuration(t *testing.T) {
+func TestParseDuration(t *testing.T) {
 	type test struct {
 		name     string
 		duration string
@@ -80,9 +80,10 @@ func Test_ParseDuration(t *testing.T) {
 		},
 		{
 			name:     "0 values are in the middle are allowed",
-			duration: "1y0M1m",
+			duration: "4y0M1m",
 			date:     time.Now(),
-			expected: 365*24*time.Hour + 1*time.Minute,
+			// note that this will fail in 2096-2099 since 2100 is not a leap year
+			expected: (4*365+1)*24*time.Hour + 1*time.Minute,
 		},
 		{
 			name:     "total of 0 should also be fine",

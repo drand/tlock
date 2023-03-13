@@ -20,7 +20,7 @@ type tleRecipient struct {
 // age that is used for encrypting/decrypting data. Inside of Wrap we encrypt
 // the DEK using time lock encryption.
 func (t *tleRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
-	ciphertext, err := TimeLock(t.network.PublicKey(), t.roundNumber, fileKey)
+	ciphertext, err := TimeLock(t.network.Scheme(), t.network.PublicKey(), t.roundNumber, fileKey)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt dek: %w", err)
 	}
@@ -71,7 +71,8 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 	}
 
 	if t.network.ChainHash() != stanza.Args[1] {
-		return nil, errors.New("wrong chainhash")
+		return nil, fmt.Errorf("wrong chainhash: current network uses %s != %s the ciphertext requires.\n"+
+			"Note that is might have been encrypted using our testnet instead", t.network.ChainHash(), stanza.Args[1])
 	}
 
 	ciphertext, err := BytesToCiphertext(stanza.Body)
@@ -89,7 +90,7 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 		Signature: signature,
 	}
 
-	fileKey, err := TimeUnlock(t.network.PublicKey(), beacon, ciphertext)
+	fileKey, err := TimeUnlock(t.network.Scheme(), t.network.PublicKey(), beacon, ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
