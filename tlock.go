@@ -163,6 +163,8 @@ const (
 	kyberG2PointLen = 96
 	cipherVLen      = 16
 	cipherWLen      = 16
+	expLenOnG1      = kyberG1PointLen + cipherVLen + cipherWLen
+	expLenOnG2      = kyberG2PointLen + cipherVLen + cipherWLen
 )
 
 // CiphertextToBytes converts a ciphertext value to a set of bytes.
@@ -190,8 +192,7 @@ func CiphertextToBytes(ciphertext *ibe.Ciphertext) ([]byte, error) {
 
 // BytesToCiphertext converts bytes to a ciphertext.
 func BytesToCiphertext(b []byte) (*ibe.Ciphertext, error) {
-	expLenOnG1 := kyberG1PointLen + cipherVLen + cipherWLen
-	expLenOnG2 := kyberG2PointLen + cipherVLen + cipherWLen
+
 	if !(len(b) == expLenOnG1 || len(b) == expLenOnG2) {
 		return nil, fmt.Errorf("incorrect length: exp: G1: %d or G2: %d got: %d", expLenOnG1, expLenOnG2, len(b))
 	}

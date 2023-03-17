@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	filippo.io/age v1.1.1
-	github.com/drand/drand v1.5.3
+	github.com/drand/drand v1.5.4
 	github.com/drand/kyber v1.2.0
 	github.com/drand/kyber-bls12381 v0.2.6
 	github.com/stretchr/testify v1.8.2
