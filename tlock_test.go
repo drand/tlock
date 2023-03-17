@@ -47,7 +47,7 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 		// Write the encoded information to this buffer.
 		var cipherData bytes.Buffer
 
-		// Enough duration to check for a non-existing beacon.
+		// Enough duration to check for a non-existent beacon.
 		duration := 10 * time.Second
 
 		roundNumber := network.RoundNumber(time.Now().Add(duration))
@@ -135,7 +135,7 @@ func TestEncryptionWithDuration(t *testing.T) {
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	// Enough duration to check for a non-existing beacon.
+	// Enough duration to check for a non-existent beacon.
 	duration := 4 * time.Second
 
 	roundNumber := network.RoundNumber(time.Now().Add(duration))

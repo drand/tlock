@@ -14,8 +14,8 @@ Working endpoints to access it are, on mainnet:
 On mainnet, only one chainhash supports timelock encryption:
 - running with a 3 seconds frequency with signatures on G1: `dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
 
-This is a production-ready network with high-availability guarantees. It is considered by the drand team and ran by
-the same League of Entropy that has been running drand in production since 2019.
+This is a production-ready network with high-availability guarantees. It is considered fully secure by the drand team 
+and ran by the same League of Entropy that has been running drand in production since 2019.
 
 On testnet:
 - https://pl-us.testnet.drand.sh/
@@ -24,12 +24,9 @@ On testnet:
 where we have two networks supporting timelock:
 - running with a 3 seconds frequency with signatures on G1: `f3827d772c155f95a9fda8901ddd59591a082df5ac6efe3a479ddb1f5eeb202c`
 - running with a 3 seconds frequency with signatures on G2: `7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf`
-Notice these are relying on the League of Entropy **Testnet**, which should not be considered secure. 
+Note these are relying on the League of Entropy **Testnet**, which should not be considered secure.
 
-A compatible League of Entropy Mainnet network is going to be launched in mid September, which can be considered secure.
-In the meantime, we recommend only using the Testnet network for development and testing purposes.
-
-You can also spin up a new drand network and run your own, but notice that the security guarantees boil down to the trust you can have in your network.
+You can also spin up a new drand network and run your own, but note that the security guarantees boil down to the trust you can have in your network.
 
 ---
 
@@ -142,7 +139,7 @@ Using the old testnet unchained network and storing the output in a file named "
 $ tle -d -n="https://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
  -o=decrypted_data encrypted_data
 ```
-Notice it will overwrite that `decrypted_data` file if it exists already.
+Note it will overwrite the `decrypted_data` file if it already exists.
 
 If decoding an armored source you don't need to specify `-a` again.
 
