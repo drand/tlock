@@ -15,6 +15,7 @@ import (
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/encrypt/ibe"
 	"io"
+	"time"
 )
 
 // ErrTooEarly represents an error when a decryption operation happens early.
@@ -27,7 +28,7 @@ var ErrInvalidPublicKey = errors.New("the public key received from the network t
 // a DEK based on a future time.
 type Network interface {
 	ChainHash() string
-	Current() uint64
+	Current(time.Time) uint64
 	PublicKey() kyber.Point
 	Scheme() crypto.Scheme
 	Signature(roundNumber uint64) ([]byte, error)

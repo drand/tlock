@@ -20,10 +20,9 @@ jobs:
 
     - name: Staticheck
       run: |
-        wget -O staticcheck.tgz https://github.com/dominikh/go-tools/releases/download/2022.1/staticcheck_linux_amd64.tar.gz
-        sudo tar -xzf staticcheck.tgz
-        ./staticcheck/staticcheck --version
-        ./staticcheck/staticcheck -checks=all ./...
+        go install honnef.co/go/tools/cmd/staticcheck@latest
+        staticcheck --version
+        staticcheck -checks=all ./...
 
     - name: Build
       run: CGO_ENABLED=0 go build -v ./...

@@ -93,9 +93,9 @@ func (n *Network) ChainHash() string {
 	return n.chainHash
 }
 
-// Period returns the period of that network.
-func (n *Network) Current() uint64 {
-	return chain.CurrentRound(time.Now().Unix(), n.period, n.genesis)
+// Current returns the current round for that network at the given date.
+func (n *Network) Current(date time.Time) uint64 {
+	return chain.CurrentRound(date.Unix(), n.period, n.genesis)
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.

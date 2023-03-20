@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/drand/drand/chain"
 	"strconv"
+	"time"
 )
 
 var ErrWrongChainhash = errors.New("invalid chainhash")
@@ -86,7 +87,7 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 				"%w: expected round %d > %d current round",
 				ErrTooEarly,
 				roundNumber,
-				t.network.Current())
+				t.network.Current(time.Now()))
 		}
 
 		beacon := chain.Beacon{
