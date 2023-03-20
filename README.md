@@ -11,7 +11,8 @@ Working endpoints to access it are, on mainnet:
 - https://api3.drand.sh/ (Asia)
 - https://drand.cloudflare.com/ (load-balanced across regions)
 
-On mainnet, the chainhas supporting timelock encryption, with a 3s frequency and signatures on the G1 group is: `dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
+On mainnet, the only chainhash supporting timelock encryption, with a 3s frequency and signatures on the G1 group is:
+`dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
 
 This is a production-ready network with high-availability guarantees. It is considered fully secure by the drand team 
 and ran by the same League of Entropy that has been running drand in production since 2019.
@@ -77,23 +78,24 @@ Options:
 	-n, --network  The drand API endpoint to use.
 	-c, --chain    The chain to use. Can use either beacon ID name or beacon hash. Use beacon hash in order to ensure public key integrity.
 	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
-	-D, --duration How long to wait before the message can be decrypted. Defaults to 120d (120 days).
+	-f, --force    Forces to encrypt against past rounds.
+	-D, --duration How long to wait before the message can be decrypted.
 	-o, --output   Write the result to the file at path OUTPUT.
-	-a, --armor    Encrypt or Decrypt to a PEM encoded format.
+	-a, --armor    Encrypt to a PEM encoded format.
 
 If the OUTPUT exists, it will be overwritten.
 
-NETWORK defaults to the drand mainnet endpoint https://api.drand.sh/. 
+NETWORK defaults to the drand mainnet endpoint https://api.drand.sh/.
 
 CHAIN defaults to the chainhash of the fastnet network:
 dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493
 
-You can also use the drand test network: 
-https://pl-us.testnet.drand.sh/ 
+You can also use the drand test network:
+https://pl-us.testnet.drand.sh/
 and its unchained network with chain hash 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
 Note that if you encrypted something prior to March 2023, this was the only available network and used to be the default.
 
-DURATION, when specified, expects a number followed by one of these units: 
+DURATION, when specified, expects a number followed by one of these units:
 "ns", "us" (or "µs"), "ms", "s", "m", "h", "d", "M", "y".
 
 Example:
