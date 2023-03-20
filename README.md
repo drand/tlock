@@ -25,7 +25,7 @@ where we have two networks supporting timelock:
 - running with a 3 seconds frequency with signatures on G2: `7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf`
 Note these are relying on the League of Entropy **Testnet**, which should not be considered secure.
 
-You can also spin up a new drand network and run your own, but note that the security guarantees boil down to the trust you can have in your network.
+You can also spin up a new drand network and run your own, but note that the security guarantees boil down to the trust you have in your network.
 
 ---
 
