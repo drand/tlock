@@ -11,8 +11,7 @@ Working endpoints to access it are, on mainnet:
 - https://api3.drand.sh/ (Asia)
 - https://drand.cloudflare.com/ (load-balanced across regions)
 
-On mainnet, only one chainhash supports timelock encryption:
-- running with a 3 seconds frequency with signatures on G1: `dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
+On mainnet, the chainhas supporting timelock encryption, with a 3s frequency and signatures on the G1 group is: `dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
 
 This is a production-ready network with high-availability guarantees. It is considered fully secure by the drand team 
 and ran by the same League of Entropy that has been running drand in production since 2019.
