@@ -2,12 +2,13 @@ package tlock
 
 import (
 	"errors"
-	"fmt"
-	"strconv"
-
 	"filippo.io/age"
+	"fmt"
 	"github.com/drand/drand/chain"
+	"strconv"
 )
+
+var ErrWrongChainhash = errors.New("invalid chainhash")
 
 // tleRecipient implements the age Recipient interface. This is used to encrypt
 // data with the age Encrypt API.
@@ -25,7 +26,7 @@ func (t *tleRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 		return nil, fmt.Errorf("encrypt dek: %w", err)
 	}
 
-	body, err := CiphertextToBytes(ciphertext)
+	body, err := CiphertextToBytes(t.network.Scheme(), ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("bytes: %w", err)
 	}
@@ -70,18 +71,22 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 		}
 
 		if t.network.ChainHash() != stanza.Args[1] {
-			return nil, fmt.Errorf("wrong chainhash: current network uses %s != %s the ciphertext requires.\n"+
-				"Note that is might have been encrypted using our testnet instead", t.network.ChainHash(), stanza.Args[1])
+			return nil, fmt.Errorf("%w: current network uses %s != %s the ciphertext requires.\n"+
+				"Note that is might have been encrypted using our testnet instead", ErrWrongChainhash, t.network.ChainHash(), stanza.Args[1])
 		}
 
-		ciphertext, err := BytesToCiphertext(stanza.Body)
+		ciphertext, err := BytesToCiphertext(t.network.Scheme(), stanza.Body)
 		if err != nil {
 			return nil, fmt.Errorf("parse cipher dek: %w", err)
 		}
 
 		signature, err := t.network.Signature(roundNumber)
 		if err != nil {
-			return nil, fmt.Errorf("signature: %w", ErrTooEarly)
+			return nil, fmt.Errorf(
+				"%w: expected round %d > %d current round",
+				ErrTooEarly,
+				roundNumber,
+				t.network.Current())
 		}
 
 		beacon := chain.Beacon{

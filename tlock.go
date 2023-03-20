@@ -6,16 +6,15 @@ package tlock
 import (
 	"bufio"
 	"errors"
-	"fmt"
-	"io"
-
 	"filippo.io/age"
 	"filippo.io/age/armor"
+	"fmt"
 	"github.com/drand/drand/chain"
 	"github.com/drand/drand/crypto"
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/encrypt/ibe"
+	"io"
 )
 
 // ErrTooEarly represents an error when a decryption operation happens early.
@@ -28,6 +27,7 @@ var ErrInvalidPublicKey = errors.New("the public key received from the network t
 // a DEK based on a future time.
 type Network interface {
 	ChainHash() string
+	Current() uint64
 	PublicKey() kyber.Point
 	Scheme() crypto.Scheme
 	Signature(roundNumber uint64) ([]byte, error)
@@ -125,7 +125,6 @@ func TimeLock(scheme crypto.Scheme, publicKey kyber.Point, roundNumber uint64, d
 // TimeUnlock decrypts the specified ciphertext for the given beacon. The
 // ciphertext can't be decrypted until the specified round is reached by the network in use.
 func TimeUnlock(scheme crypto.Scheme, publicKey kyber.Point, beacon chain.Beacon, ciphertext *ibe.Ciphertext) ([]byte, error) {
-
 	if err := scheme.VerifyBeacon(&beacon, publicKey); err != nil {
 		return nil, fmt.Errorf("verify beacon: %w", err)
 	}
@@ -159,29 +158,22 @@ func TimeUnlock(scheme crypto.Scheme, publicKey kyber.Point, beacon chain.Beacon
 
 // These constants define the size of the different CipherDEK fields.
 const (
-	kyberG1PointLen = 48
-	kyberG2PointLen = 96
-	cipherVLen      = 16
-	cipherWLen      = 16
-	expLenOnG1      = kyberG1PointLen + cipherVLen + cipherWLen
-	expLenOnG2      = kyberG2PointLen + cipherVLen + cipherWLen
+	cipherVLen = 16
+	cipherWLen = 16
 )
 
 // CiphertextToBytes converts a ciphertext value to a set of bytes.
-func CiphertextToBytes(ciphertext *ibe.Ciphertext) ([]byte, error) {
+func CiphertextToBytes(scheme crypto.Scheme, ciphertext *ibe.Ciphertext) ([]byte, error) {
 	kyberPoint, err := ciphertext.U.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("marshal kyber point: %w", err)
 	}
-	var kyberPointLen int
-	switch ciphertext.U.(type) {
-	case *bls.KyberG2:
-		kyberPointLen = kyberG2PointLen
-	case *bls.KyberG1:
-		kyberPointLen = kyberG1PointLen
-	default:
-		panic(fmt.Sprintf("invalid ciphertext type: %T", ciphertext.U))
+
+	kyberPointLen := ciphertext.U.MarshalSize()
+	if kyberPointLen != scheme.KeyGroup.PointLen() {
+		return nil, fmt.Errorf("unsupported type (MarshalSize %d) for U: %T", kyberPointLen, ciphertext.U)
 	}
+
 	b := make([]byte, kyberPointLen+cipherVLen+cipherWLen)
 	copy(b, kyberPoint)
 	copy(b[kyberPointLen:], ciphertext.V)
@@ -191,16 +183,10 @@ func CiphertextToBytes(ciphertext *ibe.Ciphertext) ([]byte, error) {
 }
 
 // BytesToCiphertext converts bytes to a ciphertext.
-func BytesToCiphertext(b []byte) (*ibe.Ciphertext, error) {
-
-	if !(len(b) == expLenOnG1 || len(b) == expLenOnG2) {
-		return nil, fmt.Errorf("incorrect length: exp: G1: %d or G2: %d got: %d", expLenOnG1, expLenOnG2, len(b))
-	}
-
-	// assume G2
-	kyberPointLen := kyberG2PointLen
-	if len(b) == expLenOnG1 { // use G1 if not
-		kyberPointLen = kyberG1PointLen
+func BytesToCiphertext(scheme crypto.Scheme, b []byte) (*ibe.Ciphertext, error) {
+	kyberPointLen := scheme.KeyGroup.PointLen()
+	if tot := kyberPointLen + cipherVLen + cipherWLen; len(b) != tot {
+		return nil, fmt.Errorf("incorrect length: exp: %d got: %d", tot, len(b))
 	}
 
 	kyberPoint := make([]byte, kyberPointLen)
@@ -212,21 +198,9 @@ func BytesToCiphertext(b []byte) (*ibe.Ciphertext, error) {
 	cipherW := make([]byte, cipherVLen)
 	copy(cipherW, b[kyberPointLen+cipherVLen:])
 
-	var u kyber.Point
-	switch len(b) {
-	case expLenOnG1:
-		var p bls.KyberG1
-		if err := p.UnmarshalBinary(kyberPoint); err != nil {
-			return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
-		}
-		u = p.Clone()
-
-	case expLenOnG2:
-		var p bls.KyberG2
-		if err := p.UnmarshalBinary(kyberPoint); err != nil {
-			return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
-		}
-		u = p.Clone()
+	u := scheme.KeyGroup.Point()
+	if err := u.UnmarshalBinary(kyberPoint); err != nil {
+		return nil, fmt.Errorf("unmarshal kyber point (type %T): %w", scheme.KeyGroup, err)
 	}
 
 	ct := ibe.Ciphertext{

@@ -35,7 +35,7 @@ func Encrypt(flags Flags, dst io.Writer, src io.Reader, network *http.Network) e
 	switch {
 	case flags.Round != 0:
 		lastestAvailableRound := network.RoundNumber(time.Now())
-		if flags.Round < lastestAvailableRound {
+		if !flags.Force && flags.Round < lastestAvailableRound {
 			return fmt.Errorf("round %d is in the past", flags.Round)
 		}
 

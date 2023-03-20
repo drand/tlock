@@ -119,7 +119,8 @@ Example using the fastnet mainnet network and a given round:
 $ tle -n="https://api.drand.sh/" -c="dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493" -r=123456 -o=encrypted_data data.txt
 ```
 
-It is also possible to encrypt the data to a PEM encoded format using the armor (`--armor/-a`) flag:
+It is also possible to encrypt the data to a PEM encoded format using the armor (`--armor/-a`) flag,
+and to rely on the default network and chain hash (which is the `fastnet` one on `api.drand.sh`):
 ```bash
 $ tle -a -D 20s -o=encrypted_data.PEM data.txt
 ```

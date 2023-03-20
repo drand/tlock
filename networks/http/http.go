@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/drand/drand/chain"
 	"github.com/drand/drand/crypto"
 	"log"
 	"net"
@@ -24,7 +25,7 @@ const timeout = 5 * time.Second
 
 // ErrNotUnchained represents an error when the informed chain belongs to a
 // chained network.
-var ErrNotUnchained = errors.New("hash does not belong to an unchained network")
+var ErrNotUnchained = errors.New("not an unchained network")
 
 // =============================================================================
 
@@ -34,6 +35,8 @@ type Network struct {
 	client    client.Client
 	publicKey kyber.Point
 	scheme    crypto.Scheme
+	period    time.Duration
+	genesis   int64
 }
 
 // NewNetwork constructs a network for use that will use the http client.
@@ -78,6 +81,8 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		client:    client,
 		publicKey: info.PublicKey,
 		scheme:    *sch,
+		period:    info.Period,
+		genesis:   info.GenesisTime,
 	}
 
 	return &network, nil
@@ -86,6 +91,11 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 // ChainHash returns the chain hash for this network.
 func (n *Network) ChainHash() string {
 	return n.chainHash
+}
+
+// Period returns the period of that network.
+func (n *Network) Current() uint64 {
+	return chain.CurrentRound(time.Now().Unix(), n.period, n.genesis)
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.

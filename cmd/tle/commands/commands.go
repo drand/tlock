@@ -19,7 +19,9 @@ const (
 
 // =============================================================================
 
-const usage = `Usage:
+const usage = `tlock v1.0.0 -- github.com/drand/tlock
+
+Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 	tle --decrypt [-o OUTPUT] [INPUT]
 
@@ -60,6 +62,7 @@ func PrintUsage(log *log.Logger) {
 type Flags struct {
 	Encrypt  bool
 	Decrypt  bool
+	Force    bool
 	Network  string
 	Chain    string
 	Round    uint64
@@ -100,6 +103,9 @@ func parseCmdline(f *Flags) {
 	flag.BoolVar(&f.Decrypt, "d", f.Decrypt, "decrypt the input to the output")
 	flag.BoolVar(&f.Decrypt, "decrypt", f.Decrypt, "decrypt the input to the output")
 
+	flag.BoolVar(&f.Force, "f", f.Force, "ignore current time, allows to encrypt in the past")
+	flag.BoolVar(&f.Force, "force", f.Force, "ignore current time, allows to encrypt in the past")
+
 	flag.StringVar(&f.Network, "n", f.Network, "the drand API endpoint")
 	flag.StringVar(&f.Network, "network", f.Network, "the drand API endpoint")
 
@@ -137,8 +143,12 @@ func validateFlags(f *Flags) error {
 		if f.Armor {
 			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
 		}
-		if f.Network != defaultNetwork && f.Chain == defaultChain {
-			return fmt.Errorf("-c/--chain needs to be specified when using a custom network endpoint")
+		if f.Network != defaultNetwork {
+			if f.Chain == defaultChain {
+				fmt.Fprintf(os.Stderr,
+					"You've specified a non-default network endpoint but still use the default chain hash.\n"+
+						"You might want to also specify a custom chainhash with the -c/--chain flag.\n\n")
+			}
 		}
 
 	default:
