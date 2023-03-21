@@ -49,7 +49,7 @@ func TestParseDuration(t *testing.T) {
 			expected: 365 * 24 * time.Hour,
 		},
 		{
-			name:     "a mix of timespans parse successfuly",
+			name:     "a mix of timespans parse successfully",
 			duration: "1y1M1s",
 			date:     time.Date(2022, 01, 01, 0, 0, 0, 0, time.UTC),
 			expected: 365*24*time.Hour + 31*24*time.Hour + 1*time.Second,
@@ -70,13 +70,13 @@ func TestParseDuration(t *testing.T) {
 			name:     "parsing an invalid timespan character fails",
 			duration: "1C",
 			date:     time.Now(),
-			err:      ErrInvalidDurationType,
+			err:      ErrInvalidDurationFormat,
 		},
 		{
 			name:     "missing multipliers fails",
 			duration: "DM",
 			date:     time.Now(),
-			err:      ErrInvalidDurationMultiplier,
+			err:      ErrInvalidDurationFormat,
 		},
 		{
 			name:     "0 values are in the middle are allowed",
@@ -101,17 +101,17 @@ func TestParseDuration(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			durations, err := parseDurations(tc.duration)
+			seconds, err := parseDurationsAsSeconds(tc.date, tc.duration)
 			if tc.err == nil && err != nil {
 				t.Fatalf("unexpected parse error: %s", err)
 			}
 
 			if tc.err != nil && tc.err != err {
-				t.Fatalf("expecting parsing error '%s'; got %v", ErrInvalidDurationType, err)
+				t.Fatalf("expecting parsing error '%s'; got %v", ErrInvalidDurationFormat, err)
 			}
 
 			expected := tc.date.Add(tc.expected)
-			result := durations.from(tc.date)
+			result := tc.date.Add(seconds)
 
 			if !result.Equal(tc.date.Add(tc.expected)) {
 				t.Fatalf("expecting end time %s; got %s", expected, result)
