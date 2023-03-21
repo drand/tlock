@@ -39,33 +39,41 @@ You can also spin up a new drand network and run your own, but note that the sec
 ---
 
 ### Table Of Contents
- - [Install the CLI](#install-the-cli)
- - [Build it](#or-build-it)
- - [CLI usage](#cli-usage)
-	- [Encryption](#cli-encryption)
-	- [Decryption](#cli-decryption)
+ - [Install the `tle` tool](#install-or build-the-cli)
+ - [CLI usage](#tle-cli-usage)
+	- [Timelock Encryption](#timelock-encryption)
+	- [Timelock Decryption](#timelock-decryption)
  - [Library usage](#library-usage)
  - [Applying another layer of encryption](#applying-another-layer-of-encryption)
  - [Security considerations](#security-considerations)
+ - [Get in touch](#get-in-touch)
 
 ---
 
 ### Install or Build the CLI
 
-This tool is pure Go, it works without CGO (`CGO_ENABLED=0`)
-
+The `tle` tool is pure Go, it works without CGO (`CGO_ENABLED=0`).
+To install using Go:
 ```bash
 go install github.com/drand/tlock/cmd/tle@latest
 ```
 
+or locally with git:
 ```bash
 git clone https://github.com/drand/tlock
 go build cmd/tle/tle.go
 ```
 
+**Note:** if you need to decrypt old ciphertexts produced before v1.0.0 against our testnet, you'll need to install the old binary using:
+```
+go install github.com/drand/tlock/cmd/tle@v0.1.0
+```
+We have changed in v1.0.0 the way we are mapping a hash to field element and this is not retro-compatible with the old ciphertext format.
+You can still produce ciphertexts against our testnet as explained below using the v1.0.0, but it will use the new hash to field mechanism.
+
 ---
 
-### CLI Usage
+### `tle` CLI Usage
 
 ```
 Usage:
@@ -105,7 +113,7 @@ After the specified duration:
     $ tle -d -o dencrypted_file.txt encrypted_file
 ```
 
-#### Time Lock Encryption
+#### Timelock Encryption
 
 Files can be encrypted using a duration (`--duration/-D`) in which the `encrypted_data` can be decrypted.
 
@@ -127,7 +135,7 @@ and to rely on the default network and chain hash (which is the `fastnet` one on
 $ tle -a -D 20s -o=encrypted_data.PEM data.txt
 ```
 
-#### Time Lock Decryption
+#### Timelock Decryption
 
 For decryption, it's only necessary to specify the network if you're not using the default one.
 
@@ -252,6 +260,15 @@ In practice this means that if you trust there are never more than the threshold
 Please note that neither BLS nor the IBE scheme we are relying on are "quantum resistant", therefore shall a Quantum Computer be built that's able to threaten their security, our current design wouldn't resist. There are also no quantum resistant scheme that we're aware of that could be used to replace our current design since post-quantum signatures schemes do not "thresholdize" too well in a post-quantum IBE-compatible way. 
 
 However, such a quantum computer seems unlikely to be built within the next 5-10 years and therefore we currently consider that you can expect a "**long term security**" horizon of at least 5 years by relying on our design.
+
+---
+
+### Get in touch
+
+- [Open an issue](https://github.com/drand/tlock/issues/new/choose) for feature requests or to report a bug.
+- [Join the drand Slack](https://join.slack.com/t/drandworkspace/shared_invite/zt-19u4rf6if-bf7lxIvF2zYn4~TrBwfkiA) to discuss Timelock, randomness beacons and more.
+- Follow the [drand blog](https://drand.love/blog/) for our articles.
+- Follow the [@drand_loe](https://twitter.com/drand_loe) account on Twitter to stay tuned.
 
 ---
 
