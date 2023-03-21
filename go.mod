@@ -1,6 +1,6 @@
 module github.com/drand/tlock
 
-go 1.18
+go 1.19
 
 require (
 	filippo.io/age v1.1.1
