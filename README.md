@@ -3,18 +3,30 @@
 tlock gives you time based encryption and decryption capabilities by relying on a [drand](https://drand.love/) threshold network.  
 It's also a Go library, which is used to implement the `tle` command line tool enabling anybody to leverage timelock encryption.
 
-Our timelock encryption system relies on an unchained drand network. Currently, the only publicly available one is the League of Entropy Testnet.
-However, it should soon also be available on the League's Mainnet.
+Our timelock encryption system relies on an "[unchained drand network](https://drand.love/blog/2022/02/21/multi-frequency-support-and-timelock-encryption-capabilities/)".
 
-Working endpoints to access it are, for now:
+Working endpoints to access it are, on mainnet:
+- https://api.drand.sh/ (US)
+- https://api2.drand.sh/ (EU)
+- https://api3.drand.sh/ (Asia)
+- https://drand.cloudflare.com/ (load-balanced across regions)
+
+On mainnet, the only chainhash supporting timelock encryption, with a 3s frequency and signatures on the G1 group is:
+`dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
+
+This is a production-ready network with high-availability guarantees. It is considered fully secure by the drand team 
+and ran by the same League of Entropy that has been running drand in production since 2019.
+
+On testnet:
 - https://pl-us.testnet.drand.sh/
+- https://pl-eu.testnet.drand.sh/
 - https://testnet0-api.drand.cloudflare.com/
+where we have two networks supporting timelock:
+- running with a 3 seconds frequency with signatures on G1: `f3827d772c155f95a9fda8901ddd59591a082df5ac6efe3a479ddb1f5eeb202c`
+- running with a 3 seconds frequency with signatures on G2: `7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf`
+Note these are relying on the League of Entropy **Testnet**, which should not be considered secure.
 
-Notice this is relying on the League of Entropy **Testnet**, which should not be considered secure. 
-A compatible League of Entropy Mainnet network is going to be launched in mid September, which can be considered secure.
-In the meantime, we recommend only using the Testnet network for development and testing purposes.
-
-You can also spin up a new drand network and run your own, but notice that the security guarantees boil down to the trust you can have in your network.
+You can also spin up a new drand network and run your own, but note that the security guarantees boil down to the trust you have in your network.
 
 ---
 
@@ -66,19 +78,25 @@ Options:
 	-n, --network  The drand API endpoint to use.
 	-c, --chain    The chain to use. Can use either beacon ID name or beacon hash. Use beacon hash in order to ensure public key integrity.
 	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
-	-D, --duration How long to wait before the message can be decrypted. Defaults to 120d (120 days).
+	-f, --force    Forces to encrypt against past rounds.
+	-D, --duration How long to wait before the message can be decrypted.
 	-o, --output   Write the result to the file at path OUTPUT.
-	-a, --armor    Encrypt or Decrypt to a PEM encoded format.
+	-a, --armor    Encrypt to a PEM encoded format.
 
 If the OUTPUT exists, it will be overwritten.
 
-NETWORK defaults to the Drand test network http://pl-us.testnet.drand.sh/.
+NETWORK defaults to the drand mainnet endpoint https://api.drand.sh/.
 
-CHAIN defaults to the "unchained" hash in the default test network:
-7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
+CHAIN defaults to the chainhash of the fastnet network:
+dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493
 
-DURATION has a default value of 120d. When it is specified, it expects a number
-followed by one of these units: "ns", "us" (or "µs"), "ms", "s", "m", "h", "d", "M", "y").
+You can also use the drand test network:
+https://pl-us.testnet.drand.sh/
+and its unchained network with chain hash 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
+Note that if you encrypted something prior to March 2023, this was the only available network and used to be the default.
+
+DURATION, when specified, expects a number followed by one of these units:
+"ns", "us" (or "µs"), "ms", "s", "m", "h", "d", "M", "y".
 
 Example:
     $ tle -D 10d -o encrypted_file data_to_encrypt
@@ -91,34 +109,41 @@ After the specified duration:
 
 Files can be encrypted using a duration (`--duration/-D`) in which the `encrypted_data` can be decrypted.
 
+Example using the testnet network and a duration of 5 seconds:
 ```bash
-$ tle -n="http://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D=5s -o=encrypted_data data.txt
+$ tle -n="https://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D=5s -o=encrypted_data data.txt
 ```
 
 If a round (`--round/-R`) number is known, it can be used instead of the duration. The data can be decrypted only when that round becomes available in the network.
 
+Example using the fastnet mainnet network and a given round:
 ```bash
-$ tle -n="http://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -r=123456 -o=encrypted_data data.txt
+$ tle -n="https://api.drand.sh/" -c="dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493" -r=123456 -o=encrypted_data data.txt
 ```
 
-It is also possible to encrypt the data to a PEM encoded format using the armor (`--armor/-a`) flag.
+It is also possible to encrypt the data to a PEM encoded format using the armor (`--armor/-a`) flag,
+and to rely on the default network and chain hash (which is the `fastnet` one on `api.drand.sh`):
 ```bash
-$ tle -a -n="http://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -r=123456 -o=encrypted_data.PEM data.txt
+$ tle -a -D 20s -o=encrypted_data.PEM data.txt
 ```
 
 #### Time Lock Decryption
 
-For decryption, it's only necessary to specify the network.
+For decryption, it's only necessary to specify the network if you're not using the default one.
 
+Using the default ("fastnet" network on mainnet) and printing on stdout:
 ```bash
-$ tle -d -n="http://pl-us.testnet.drand.sh/" -o=decrypted_data encrypted_data
+$ tle -d encrypted_data
 ```
 
-If decoding a PEM source.
-
+Using the old testnet unchained network and storing the output in a file named "decrypted_data":
 ```bash
-$ tle -a -d -n="http://pl-us.testnet.drand.sh/" -o=decrypted_data encrypted_data
+$ tle -d -n="https://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+ -o=decrypted_data encrypted_data
 ```
+Note it will overwrite the `decrypted_data` file if it already exists.
+
+If decoding an armored source you don't need to specify `-a` again.
 
 ---
 
@@ -137,9 +162,9 @@ if err != nil {
 }
 defer in.Close()
 
-// Construct a network that can talk to a drand network.
-// host:      "http://pl-us.testnet.drand.sh/"
-// chainHash: "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+// Construct a network that can talk to a drand network. Example using the mainnet fastnet network.
+// host:      "https://api.drand.sh/"
+// chainHash: "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 network := http.NewNetwork(host, chainHash)
 
 // Specify how long we need to wait before the file can be decrypted.
@@ -174,8 +199,8 @@ if err != nil {
 defer in.Close()
 
 // Construct a network that can talk to a drand network.
-// host:      "http://pl-us.testnet.drand.sh/"
-// chainHash: "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+// host:      "https://api.drand.sh/"
+// chainHash: "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 network := http.NewNetwork(host, chainHash)
 
 // Write the decrypted file data to this buffer.
@@ -236,6 +261,6 @@ This project is licensed using the [Permissive License Stack](https://protocol.a
 
 Therefore, the project is dual-licensed under Apache 2.0 and MIT terms:
 
-- Apache License, Version 2.0, ([LICENSE-APACHE](https://github.com/drand/drand/blob/master/LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](https://github.com/drand/drand/blob/master/LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0, ([LICENSE-APACHE](https://github.com/drand/drand/blob/master/LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](https://github.com/drand/drand/blob/master/LICENSE-MIT) or https://opensource.org/licenses/MIT)
 89 

@@ -3,9 +3,11 @@ package tlock_test
 import (
 	"bytes"
 	_ "embed" // Calls init function.
-	"errors"
+	"github.com/drand/drand/crypto"
 	bls "github.com/drand/kyber-bls12381"
+	"github.com/stretchr/testify/require"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,75 +22,64 @@ var (
 )
 
 const (
-	testnetHost      = "http://pl-us.testnet.drand.sh/"
+	testnetHost      = "https://pl-us.testnet.drand.sh/"
 	testnetChainHash = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+	mainnetHost      = "https://api.drand.sh/"
+	mainnetChainHash = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 )
 
-func Test_EarlyDecryptionWithDuration(t *testing.T) {
-	network, err := http.NewNetwork(testnetHost, testnetChainHash)
-	if err != nil {
-		t.Fatalf("network error %s", err)
-	}
+func TestEarlyDecryptionWithDuration(t *testing.T) {
+	for host, hash := range map[string]string{testnetHost: testnetChainHash, mainnetHost: mainnetChainHash} {
+		network, err := http.NewNetwork(host, hash)
+		require.NoError(t, err)
 
-	// =========================================================================
-	// Encrypt
+		// =========================================================================
+		// Encrypt
 
-	// Read the plaintext data to be encrypted.
-	in, err := os.Open("test_artifacts/data.txt")
-	if err != nil {
-		t.Fatalf("reader error %s", err)
-	}
-	defer in.Close()
+		// Read the plaintext data to be encrypted.
+		in, err := os.Open("test_artifacts/data.txt")
+		require.NoError(t, err)
+		defer in.Close()
 
-	// Write the encoded information to this buffer.
-	var cipherData bytes.Buffer
+		// Write the encoded information to this buffer.
+		var cipherData bytes.Buffer
 
-	// Enough duration to check for an non-existing beacon.
-	duration := 10 * time.Second
+		// Enough duration to check for a non-existent beacon.
+		duration := 10 * time.Second
 
-	roundNumber := network.RoundNumber(time.Now().Add(duration))
-	if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
-		t.Fatalf("encrypt with duration error %s", err)
-	}
+		roundNumber := network.RoundNumber(time.Now().Add(duration))
+		err = tlock.New(network).Encrypt(&cipherData, in, roundNumber)
+		require.NoError(t, err)
 
-	// =========================================================================
-	// Decrypt
+		// =========================================================================
+		// Decrypt
 
-	// Write the decoded information to this buffer.
-	var plainData bytes.Buffer
+		// Write the decoded information to this buffer.
+		var plainData bytes.Buffer
 
-	// We DO NOT wait for the future beacon to exist.
-	err = tlock.New(network).Decrypt(&plainData, &cipherData)
-	if err == nil {
-		t.Fatal("expecting decrypt error")
-	}
-
-	if !errors.Is(err, tlock.ErrTooEarly) {
-		t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
+		// We DO NOT wait for the future beacon to exist.
+		err = tlock.New(network).Decrypt(&plainData, &cipherData)
+		require.ErrorIs(t, err, tlock.ErrTooEarly)
 	}
 }
 
-func Test_EarlyDecryptionWithRound(t *testing.T) {
+func TestEarlyDecryptionWithRound(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetChainHash)
-	if err != nil {
-		t.Fatalf("network error %s", err)
-	}
+	require.NoError(t, err)
+
 	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
 	in, err := os.Open("test_artifacts/data.txt")
-	if err != nil {
-		t.Fatalf("reader error %s", err)
-	}
+	require.NoError(t, err)
 	defer in.Close()
 
 	var cipherData bytes.Buffer
 	futureRound := network.RoundNumber(time.Now().Add(1 * time.Minute))
 
-	if err := tlock.New(network).Encrypt(&cipherData, in, futureRound); err != nil {
-		t.Fatalf("encrypt with round error %s", err)
-	}
+	err = tlock.New(network).Encrypt(&cipherData, in, futureRound)
+	require.NoError(t, err)
 
 	// =========================================================================
 	// Decrypt
@@ -98,45 +89,34 @@ func Test_EarlyDecryptionWithRound(t *testing.T) {
 
 	// We DO NOT wait for the future beacon to exist.
 	err = tlock.New(network).Decrypt(&plainData, &cipherData)
-	if err == nil {
-		t.Fatal("expecting decrypt error")
-	}
-
-	if !errors.Is(err, tlock.ErrTooEarly) {
-		t.Fatalf("expecting decrypt error to contain '%s'; got %s", tlock.ErrTooEarly, err)
-	}
+	require.ErrorIs(t, err, tlock.ErrTooEarly)
 }
 
-func Test_EncryptionWithDuration(t *testing.T) {
+func TestEncryptionWithDuration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping testing in short mode")
+		t.Skip("skipping live testing in short mode")
 	}
 
 	network, err := http.NewNetwork(testnetHost, testnetChainHash)
-	if err != nil {
-		t.Fatalf("network error %s", err)
-	}
+	require.NoError(t, err)
 
 	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
 	in, err := os.Open("test_artifacts/data.txt")
-	if err != nil {
-		t.Fatalf("reader error %s", err)
-	}
+	require.NoError(t, err)
 	defer in.Close()
 
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
-	// Enough duration to check for an non-existing beacon.
+	// Enough duration to check for a non-existent beacon.
 	duration := 4 * time.Second
 
 	roundNumber := network.RoundNumber(time.Now().Add(duration))
-	if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
-		t.Fatalf("encrypt with duration error %s", err)
-	}
+	err = tlock.New(network).Encrypt(&cipherData, in, roundNumber)
+	require.NoError(t, err)
 
 	// =========================================================================
 	// Decrypt
@@ -146,42 +126,36 @@ func Test_EncryptionWithDuration(t *testing.T) {
 	// Write the decoded information to this buffer.
 	var plainData bytes.Buffer
 
-	if err := tlock.New(network).Decrypt(&plainData, &cipherData); err != nil {
-		t.Fatalf("unexpected error %s", err)
-	}
+	err = tlock.New(network).Decrypt(&plainData, &cipherData)
+	require.NoError(t, err)
 
 	if !bytes.Equal(plainData.Bytes(), dataFile) {
 		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(plainData.Bytes()))
 	}
 }
 
-func Test_EncryptionWithRound(t *testing.T) {
+func TestEncryptionWithRound(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping testing in short mode")
+		t.Skip("skipping live testing in short mode")
 	}
 
 	network, err := http.NewNetwork(testnetHost, testnetChainHash)
-	if err != nil {
-		t.Fatalf("network error %s", err)
-	}
+	require.NoError(t, err)
 
 	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
 	in, err := os.Open("test_artifacts/data.txt")
-	if err != nil {
-		t.Fatalf("reader error %s", err)
-	}
+	require.NoError(t, err)
 	defer in.Close()
 
 	// Write the encoded information to this buffer.
 	var cipherData bytes.Buffer
 
 	futureRound := network.RoundNumber(time.Now().Add(6 * time.Second))
-	if err := tlock.New(network).Encrypt(&cipherData, in, futureRound); err != nil {
-		t.Fatalf("encrypt with duration error %s", err)
-	}
+	err = tlock.New(network).Encrypt(&cipherData, in, futureRound)
+	require.NoError(t, err)
 
 	// =========================================================================
 	// Decrypt
@@ -191,44 +165,35 @@ func Test_EncryptionWithRound(t *testing.T) {
 	// Wait for the future beacon to exist.
 	time.Sleep(10 * time.Second)
 
-	if err := tlock.New(network).Decrypt(&plainData, &cipherData); err != nil {
-		t.Fatalf("unexpected error %s", err)
-	}
+	err = tlock.New(network).Decrypt(&plainData, &cipherData)
+	require.NoError(t, err)
 
 	if !bytes.Equal(plainData.Bytes(), dataFile) {
 		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(plainData.Bytes()))
 	}
 }
 
-func Test_TimeLockUnlock(t *testing.T) {
+func TestTimeLockUnlock(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetChainHash)
-	if err != nil {
-		t.Fatalf("network error %s", err)
-	}
+	require.NoError(t, err)
 
 	futureRound := network.RoundNumber(time.Now())
 
 	id, err := network.Signature(futureRound)
-	if err != nil {
-		t.Fatalf("ready to decrypt error %s", err)
-	}
+	require.NoError(t, err)
 
 	data := []byte(`anything`)
 
-	cipherText, err := tlock.TimeLock(network.PublicKey(), futureRound, data)
-	if err != nil {
-		t.Fatalf("timelock error %s", err)
-	}
+	cipherText, err := tlock.TimeLock(network.Scheme(), network.PublicKey(), futureRound, data)
+	require.NoError(t, err)
 
 	beacon := chain.Beacon{
 		Round:     futureRound,
 		Signature: id,
 	}
 
-	b, err := tlock.TimeUnlock(network.PublicKey(), beacon, cipherText)
-	if err != nil {
-		t.Fatalf("timeunlock error %s", err)
-	}
+	b, err := tlock.TimeUnlock(network.Scheme(), network.PublicKey(), beacon, cipherText)
+	require.NoError(t, err)
 
 	if !bytes.Equal(data, b) {
 		t.Fatalf("unexpected bytes; expected len %d; got %d", len(data), len(b))
@@ -237,12 +202,105 @@ func Test_TimeLockUnlock(t *testing.T) {
 
 func TestCannotEncryptWithPointAtInfinity(t *testing.T) {
 	suite := bls.NewBLS12381Suite()
-	infinity := suite.G2().Scalar().Zero()
-	pointAtInfinity := suite.G2().Point().Mul(infinity, nil)
+	t.Run("on G2", func(t *testing.T) {
+		infinity := suite.G2().Scalar().Zero()
+		pointAtInfinity := suite.G2().Point().Mul(infinity, nil)
 
-	_, err := tlock.TimeLock(pointAtInfinity, 10, []byte("deadbeef"))
+		_, err := tlock.TimeLock(*crypto.NewPedersenBLSUnchainedSwapped(), pointAtInfinity, 10, []byte("deadbeef"))
+		require.ErrorIs(t, err, tlock.ErrInvalidPublicKey)
+	})
 
-	if err != tlock.ErrInvalidPublicKey {
-		t.Fatalf("expected error when encrypting with point at infinity")
-	}
+	t.Run("on G1", func(t *testing.T) {
+		infinity := suite.G1().Scalar().Zero()
+		pointAtInfinity := suite.G1().Point().Mul(infinity, nil)
+
+		_, err := tlock.TimeLock(*crypto.NewPedersenBLSUnchained(), pointAtInfinity, 10, []byte("deadbeef"))
+		require.ErrorIs(t, err, tlock.ErrInvalidPublicKey)
+	})
+
+}
+
+func TestDecryptText(t *testing.T) {
+	cipher := `-----BEGIN AGE ENCRYPTED FILE-----
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDIgZGJkNTA2ZDZlZjc2ZTVm
+Mzg2ZjQxYzY1MWRjYjgwOGM1YmNiZDc1NDcxY2M0ZWFmYTNmNGRmN2FkNGU0YzQ5
+MwpzRXAvVVpBQXlDSjE1QUxDaUFnQ1E2cEd1elJXS0kzMkpsQnBxUFAzcHVvdWRT
+a2w0OXJ0NC9rMmd0UHlVMTRxCkN3MERjVUJVUlloT2UrRjZsSE9lTFgwMkZNMjk3
+UGpwNlBZL09WY3NoblhqMTVMbU9FeXV1MjlDcmJGQXU3SmgKcWxlbjFtaXBONWUz
+eFpVQysxQWtjS1Z3SU9uRjJWaW8veUpkNEUyVHhQWQotLS0gN21xSHhranNqMEND
+UG9qN2haU0FWdEpFK0pUZzUwWmVsVS9YRWdOaDRadwpeDBRfXZtLOC49GlI+Kozr
+z6hgtLUPYvAimgekc+CeyJ8fb/0MVrpq/Ewnx1MpKig8nQ==
+-----END AGE ENCRYPTED FILE-----`
+	t.Run("With valid network", func(tt *testing.T) {
+		network, err := http.NewNetwork(mainnetHost, mainnetChainHash)
+		require.NoError(tt, err)
+
+		testReader := strings.NewReader(cipher)
+		var plainData bytes.Buffer
+
+		err = tlock.New(network).Decrypt(&plainData, testReader)
+		require.NoError(tt, err)
+
+		require.Equal(tt, "Hello drand World\n", plainData.String())
+	})
+
+	t.Run("With invalid network", func(tt *testing.T) {
+		network, err := http.NewNetwork(testnetHost, testnetChainHash)
+		require.NoError(tt, err)
+
+		testReader := strings.NewReader(cipher)
+		var plainData bytes.Buffer
+
+		err = tlock.New(network).Decrypt(&plainData, testReader)
+		require.ErrorIs(tt, err, tlock.ErrWrongChainhash)
+	})
+}
+
+func TestInteropWithJS(t *testing.T) {
+	t.Run("on Mainnet with G1 sigs", func(t *testing.T) {
+		cipher := `-----BEGIN AGE ENCRYPTED FILE-----
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDEgZGJkNTA2ZDZlZjc2ZTVm
+Mzg2ZjQxYzY1MWRjYjgwOGM1YmNiZDc1NDcxY2M0ZWFmYTNmNGRmN2FkNGU0YzQ5
+MwpvMTZVWGpocTM2Y0U0aExDY3B2SThMNEJhNzNLbXZ1T3dUR0x4L2QvMWdISTdk
+cDBWbE9IeUhXYUxaalNEUUlSCkIxZHBJeG82RVVLekFMU1FtQ1VFbjhwZHNHMHRy
+anlsZjJPTFZHelNYdFhwQXhPSEljbnY2SVp1ck1sZ3RybDIKTk1KOWhsSWZoOFEz
+Z3MrWGNCc0F2NGY2L2k5dVJlZlFJeUhtU1AvMDZxdwotLS0gbEtQSXMzeVNZMmUw
+RndkR1oyL0xFTkZILzl4Y3NBOU5EWXRGcDBObmZidwpiI9yHPl4yVTbeImtNOklv
+Ds7/d2pdgkRooMJ58zoZd+AFXtAn2+7yGehvtkrWoSxgA8cf1aLuHFTAHho=
+-----END AGE ENCRYPTED FILE-----`
+		expected := "hello world and other things"
+		network, err := http.NewNetwork(mainnetHost, mainnetChainHash)
+		require.NoError(t, err)
+
+		testReader := strings.NewReader(cipher)
+		var plainData bytes.Buffer
+
+		err = tlock.New(network).Decrypt(&plainData, testReader)
+		require.NoError(t, err)
+
+		require.Equal(t, expected, plainData.String())
+	})
+
+	t.Run("on Testnet with G2 sigs", func(t *testing.T) {
+		cipher := `-----BEGIN AGE ENCRYPTED FILE-----
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDEgNzY3Mjc5N2Y1NDhmM2Y0
+NzQ4YWM0YmYzMzUyZmM2YzZiNjQ2OGM5YWQ0MGFkNDU2YTM5NzU0NWM2ZTJkZjVi
+ZgpnQUNaY1NzYm55Q0ZneEsrSVB4WFpvcGY5SEZrSG1XUFZRallneWNiZmtKTk1P
+VUVUUDM2SU1wNGR1YktNTnBHClJOZkJ5VzZYYlZJVHhtK0tUWnBEa2poVXVxazdl
+WDEwRTAxTXB4VkxDancKLS0tIENjeTd4N2VSeUh5Sk54eVFKTGRjQ3ZEQjZTRDA4
+ZEFUb0ZyZS9aSHpyWVkKKwNyX6cuEEENAjic1ew7k8G6vyxDrY5NWFbAhkKy0IrN
+jLK74v9Latit5qAD7Gu/zTIsQXMuCuUf7ma7
+-----END AGE ENCRYPTED FILE-----`
+		expected := "hello world and other things"
+		network, err := http.NewNetwork(testnetHost, testnetChainHash)
+		require.NoError(t, err)
+
+		testReader := strings.NewReader(cipher)
+		var plainData bytes.Buffer
+
+		err = tlock.New(network).Decrypt(&plainData, testReader)
+		require.NoError(t, err)
+
+		require.Equal(t, expected, plainData.String())
+	})
 }

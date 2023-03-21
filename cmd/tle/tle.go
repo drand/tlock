@@ -24,7 +24,7 @@ func main() {
 	if err := run(); err != nil {
 		switch {
 		case errors.Is(err, tlock.ErrTooEarly):
-			log.Fatal(tlock.ErrTooEarly)
+			log.Fatal(errors.Unwrap(err))
 		case errors.Is(err, http.ErrNotUnchained):
 			log.Fatal(http.ErrNotUnchained)
 		default:

@@ -2,12 +2,14 @@ package tlock
 
 import (
 	"errors"
-	"fmt"
-	"strconv"
-
 	"filippo.io/age"
+	"fmt"
 	"github.com/drand/drand/chain"
+	"strconv"
+	"time"
 )
+
+var ErrWrongChainhash = errors.New("invalid chainhash")
 
 // tleRecipient implements the age Recipient interface. This is used to encrypt
 // data with the age Encrypt API.
@@ -20,12 +22,12 @@ type tleRecipient struct {
 // age that is used for encrypting/decrypting data. Inside of Wrap we encrypt
 // the DEK using time lock encryption.
 func (t *tleRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
-	ciphertext, err := TimeLock(t.network.PublicKey(), t.roundNumber, fileKey)
+	ciphertext, err := TimeLock(t.network.Scheme(), t.network.PublicKey(), t.roundNumber, fileKey)
 	if err != nil {
 		return nil, fmt.Errorf("encrypt dek: %w", err)
 	}
 
-	body, err := CiphertextToBytes(ciphertext)
+	body, err := CiphertextToBytes(t.network.Scheme(), ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("bytes: %w", err)
 	}
@@ -51,48 +53,55 @@ type tleIdentity struct {
 // lock encrypted by the Wrap function via the Stanza. Inside of Unwrap we decrypt
 // the DEK and provide back to age.
 func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
-	if len(stanzas) != 1 {
-		return nil, errors.New("check stanzas length: should be one")
+	if len(stanzas) < 1 {
+		return nil, errors.New("check stanzas length: should be at least one")
 	}
 
-	stanza := stanzas[0]
+	for _, stanza := range stanzas {
+		if stanza.Type != "tlock" {
+			continue
+		}
 
-	if stanza.Type != "tlock" {
-		return nil, fmt.Errorf("check stanza type: wrong type: %w", age.ErrIncorrectIdentity)
+		if len(stanza.Args) != 2 {
+			continue
+		}
+
+		roundNumber, err := strconv.ParseUint(stanza.Args[0], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse block round: %w", err)
+		}
+
+		if t.network.ChainHash() != stanza.Args[1] {
+			return nil, fmt.Errorf("%w: current network uses %s != %s the ciphertext requires.\n"+
+				"Note that is might have been encrypted using our testnet instead", ErrWrongChainhash, t.network.ChainHash(), stanza.Args[1])
+		}
+
+		ciphertext, err := BytesToCiphertext(t.network.Scheme(), stanza.Body)
+		if err != nil {
+			return nil, fmt.Errorf("parse cipher dek: %w", err)
+		}
+
+		signature, err := t.network.Signature(roundNumber)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"%w: expected round %d > %d current round",
+				ErrTooEarly,
+				roundNumber,
+				t.network.Current(time.Now()))
+		}
+
+		beacon := chain.Beacon{
+			Round:     roundNumber,
+			Signature: signature,
+		}
+
+		fileKey, err := TimeUnlock(t.network.Scheme(), t.network.PublicKey(), beacon, ciphertext)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt dek: %w", err)
+		}
+
+		return fileKey, nil
 	}
 
-	if len(stanza.Args) != 2 {
-		return nil, fmt.Errorf("check stanza args: should be two: %w", age.ErrIncorrectIdentity)
-	}
-
-	roundNumber, err := strconv.ParseUint(stanza.Args[0], 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("parse block round: %w", err)
-	}
-
-	if t.network.ChainHash() != stanza.Args[1] {
-		return nil, errors.New("wrong chainhash")
-	}
-
-	ciphertext, err := BytesToCiphertext(stanza.Body)
-	if err != nil {
-		return nil, fmt.Errorf("parse cipher dek: %w", err)
-	}
-
-	signature, err := t.network.Signature(roundNumber)
-	if err != nil {
-		return nil, fmt.Errorf("signature: %w", ErrTooEarly)
-	}
-
-	beacon := chain.Beacon{
-		Round:     roundNumber,
-		Signature: signature,
-	}
-
-	fileKey, err := TimeUnlock(t.network.PublicKey(), beacon, ciphertext)
-	if err != nil {
-		return nil, fmt.Errorf("decrypt dek: %w", err)
-	}
-
-	return fileKey, nil
+	return nil, fmt.Errorf("check stanza type: wrong type: %w", age.ErrIncorrectIdentity)
 }
