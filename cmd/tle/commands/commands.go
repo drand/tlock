@@ -23,18 +23,22 @@ const usage = `tlock v1.0.0 -- github.com/drand/tlock
 
 Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
+If input is a string (not a file) 
+	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [--raw_input INPUT]
+
 	tle --decrypt [-o OUTPUT] [INPUT]
 
 Options:
-	-e, --encrypt  Encrypt the input to the output. Default if omitted.
-	-d, --decrypt  Decrypt the input to the output.
-	-n, --network  The drand API endpoint to use.
-	-c, --chain    The chain to use. Can use either beacon ID name or beacon hash. Use beacon hash in order to ensure public key integrity.
-	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
-	-f, --force    Forces to encrypt against past rounds.
-	-D, --duration How long to wait before the message can be decrypted.
-	-o, --output   Write the result to the file at path OUTPUT.
-	-a, --armor    Encrypt to a PEM encoded format.
+	-e, --encrypt    Encrypt the input to the output. Default if omitted.
+	-d, --decrypt    Decrypt the input to the output.
+	-n, --network    The drand API endpoint to use.
+	-c, --chain      The chain to use. Can use either beacon ID name or beacon hash. Use beacon hash in order to ensure public key integrity.
+	-r, --round      The specific round to use to encrypt the message. Cannot be used with --duration.
+	-f, --force      Forces to encrypt against past rounds.
+	-D, --duration   How long to wait before the message can be decrypted.
+	-o, --output     Write the result to the file at path OUTPUT.
+	-a, --armor      Encrypt to a PEM encoded format.
+	-ri, --raw_input Encrypt the input string to the output
 
 If the OUTPUT exists, it will be overwritten.
 
@@ -74,6 +78,7 @@ type Flags struct {
 	Round    uint64
 	Duration string
 	Output   string
+	RawInput string
 	Armor    bool
 }
 
@@ -126,6 +131,9 @@ func parseCmdline(f *Flags) {
 
 	flag.StringVar(&f.Output, "o", f.Output, "the path to the output file")
 	flag.StringVar(&f.Output, "output", f.Output, "the path to the output file")
+
+	flag.StringVar(&f.RawInput, "ri", f.RawInput, "raw input to be encrypted")
+	flag.StringVar(&f.RawInput, "raw_input", f.RawInput, "raw input to be encrypted")
 
 	flag.BoolVar(&f.Armor, "a", f.Armor, "encrypt to a PEM encoded format")
 	flag.BoolVar(&f.Armor, "armor", f.Armor, "encrypt to a PEM encoded format")
