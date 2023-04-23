@@ -5,10 +5,10 @@ package commands
 import (
 	"flag"
 	"fmt"
+	"github.com/kelseyhightower/envconfig"
 	"log"
 	"os"
-
-	"github.com/kelseyhightower/envconfig"
+	"time"
 )
 
 // Default settings.
@@ -36,9 +36,10 @@ Options:
 	-r, --round      The specific round to use to encrypt the message. Cannot be used with --duration.
 	-f, --force      Forces to encrypt against past rounds.
 	-D, --duration   How long to wait before the message can be decrypted.
+	-t, --time       Exact time (UTC) when the message can be decrypted
 	-o, --output     Write the result to the file at path OUTPUT.
 	-a, --armor      Encrypt to a PEM encoded format.
-	-ri, --raw_input Encrypt the input string to the output
+	-I, --input      Encrypt the input string to the output
 
 If the OUTPUT exists, it will be overwritten.
 
@@ -76,6 +77,7 @@ type Flags struct {
 	Network  string
 	Chain    string
 	Round    uint64
+	Time     string
 	Duration string
 	Output   string
 	RawInput string
@@ -129,11 +131,14 @@ func parseCmdline(f *Flags) {
 	flag.StringVar(&f.Duration, "D", f.Duration, "how long to wait before being able to decrypt")
 	flag.StringVar(&f.Duration, "duration", f.Duration, "how long to wait before being able to decrypt")
 
+	flag.StringVar(&f.Time, "T", f.Time, "a UTC time value in RFC3339 format")
+	flag.StringVar(&f.Time, "time", f.Time, "a UTC time value in RFC3339 format")
+
 	flag.StringVar(&f.Output, "o", f.Output, "the path to the output file")
 	flag.StringVar(&f.Output, "output", f.Output, "the path to the output file")
 
-	flag.StringVar(&f.RawInput, "ri", f.RawInput, "raw input to be encrypted")
-	flag.StringVar(&f.RawInput, "raw_input", f.RawInput, "raw input to be encrypted")
+	flag.StringVar(&f.RawInput, "I", f.RawInput, "raw input to be encrypted")
+	flag.StringVar(&f.RawInput, "input", f.RawInput, "raw input to be encrypted")
 
 	flag.BoolVar(&f.Armor, "a", f.Armor, "encrypt to a PEM encoded format")
 	flag.BoolVar(&f.Armor, "armor", f.Armor, "encrypt to a PEM encoded format")
@@ -150,6 +155,9 @@ func validateFlags(f *Flags) error {
 		}
 		if f.Duration != "" {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
+		}
+		if f.Time != "" {
+			return fmt.Errorf("-T/--time can't be used with -d/--decrypt")
 		}
 		if f.Round != 0 {
 			return fmt.Errorf("-r/--round can't be used with -d/--decrypt")
@@ -169,11 +177,25 @@ func validateFlags(f *Flags) error {
 		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")
 		}
-		if f.Duration != "" && f.Round != 0 {
-			return fmt.Errorf("-D/--duration can't be used with -r/--round")
+		if f.Duration == "" && f.Round == 0 && f.Time == "" {
+			return fmt.Errorf("one of -D/--duration, -r/--round or -T/--time must be specified")
 		}
-		if f.Duration == "" && f.Round == 0 {
-			return fmt.Errorf("-D/--duration or -r/--round must be specified")
+		if f.Duration != "" && f.Time != "" {
+			return fmt.Errorf("-D/--duration can't be used with -T/--time")
+		}
+		if f.Time != "" && f.Round != 0 {
+			return fmt.Errorf("-T/--time can't be used with -r/--round")
+		}
+		if f.Time != "" {
+			t, err := time.Parse(time.RFC3339, f.Time)
+			if err != nil {
+				return fmt.Errorf("time format must be RFC3339 (\"2006-01-02T15:04:05Z07:00\")")
+			}
+			duration := time.Until(t)
+			if duration <= 0 {
+				return fmt.Errorf("must specify a future time")
+			}
+			f.Duration = fmt.Sprintf("%ds", int(duration.Seconds()))
 		}
 	}
 
