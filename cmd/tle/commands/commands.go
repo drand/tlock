@@ -75,6 +75,7 @@ type Flags struct {
 	Duration string
 	Output   string
 	Armor    bool
+	Metadata bool
 }
 
 // Parse will parse the environment variables and command line flags. The command
@@ -103,6 +104,7 @@ func Parse() (Flags, error) {
 // parseCmdline will parse all the command line flags.
 // The default value is set to the values parsed by the environment variables.
 func parseCmdline(f *Flags) {
+
 	flag.BoolVar(&f.Encrypt, "e", f.Encrypt, "encrypt the input to the output")
 	flag.BoolVar(&f.Encrypt, "encrypt", f.Encrypt, "encrypt the input to the output")
 
@@ -130,6 +132,9 @@ func parseCmdline(f *Flags) {
 	flag.BoolVar(&f.Armor, "a", f.Armor, "encrypt to a PEM encoded format")
 	flag.BoolVar(&f.Armor, "armor", f.Armor, "encrypt to a PEM encoded format")
 
+	flag.BoolVar(&f.Metadata, "m", f.Metadata, "get metadata about the drand network")
+	flag.BoolVar(&f.Metadata, "metadata", f.Metadata, "get metadata about the drand network")
+
 	flag.Parse()
 }
 
@@ -156,7 +161,9 @@ func validateFlags(f *Flags) error {
 						"You might want to also specify a custom chainhash with the -c/--chain flag.\n\n")
 			}
 		}
-
+		break
+	case f.Metadata:
+		break
 	default:
 		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")
