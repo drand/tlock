@@ -24,10 +24,10 @@ const usage = `tlock v1.0.0 -- github.com/drand/tlock
 Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 	tle --decrypt [-o OUTPUT] [INPUT]
-    tle --metadata
+	tle --metadata
 
 Options:
-    -m, --metadata Displays the metadata of drand network in yaml format.
+	-m, --metadata Displays the metadata of drand network in yaml format.
 	-e, --encrypt  Encrypt the input to the output. Default if omitted.
 	-d, --decrypt  Decrypt the input to the output.
 	-n, --network  The drand API endpoint to use.
