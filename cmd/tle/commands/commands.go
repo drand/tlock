@@ -181,7 +181,6 @@ func validateFlags(f *Flags) error {
 						"You might want to also specify a custom chainhash with the -c/--chain flag.\n\n")
 			}
 		}
-		break
 	default:
 		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")
