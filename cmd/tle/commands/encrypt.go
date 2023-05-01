@@ -120,3 +120,15 @@ func durationFrom(start time.Time, value int, duration rune) time.Duration {
 	}
 	return 0
 }
+
+func timestampToDuration(timestamp string) (string, error) {
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		return "", fmt.Errorf("time format must be RFC3339 (\"2006-01-02T15:04:05Z07:00\")")
+	}
+	duration := time.Until(t)
+	if duration <= 0 {
+		return "", fmt.Errorf("must specify a future time")
+	}
+	return fmt.Sprintf("%ds", int(duration.Seconds())), nil
+}

@@ -6,6 +6,7 @@ import (
 	"github.com/drand/drand/crypto"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/stretchr/testify/require"
+	"math/rand"
 	"os"
 	"strings"
 	"testing"
@@ -90,6 +91,53 @@ func TestEarlyDecryptionWithRound(t *testing.T) {
 	// We DO NOT wait for the future beacon to exist.
 	err = tlock.New(network).Decrypt(&plainData, &cipherData)
 	require.ErrorIs(t, err, tlock.ErrTooEarly)
+}
+
+func TestEncryptionWithTimestamp(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live testing in short mode")
+	}
+
+	network, err := http.NewNetwork(testnetHost, testnetChainHash)
+	require.NoError(t, err)
+
+	// =========================================================================
+	// Encrypt
+
+	// Read the plaintext data to be encrypted.
+	in, err := os.Open("test_artifacts/data.txt")
+	require.NoError(t, err)
+	defer in.Close()
+
+	// Write the encoded information to this buffer.
+	var cipherData bytes.Buffer
+
+	// Timestamp to duration
+	rand.Seed(time.Now().UnixNano())
+	timestamp := time.Now().Add(4 * time.Second).Format(time.RFC3339)
+	tstamp, err := time.Parse(time.RFC3339, timestamp)
+	require.NoError(t, err)
+	duration := time.Until(tstamp)
+
+	// Encryption with duration
+	roundNumber := network.RoundNumber(time.Now().Add(duration))
+	err = tlock.New(network).Encrypt(&cipherData, in, roundNumber)
+	require.NoError(t, err)
+
+	// =========================================================================
+	// Decrypt
+
+	time.Sleep(5 * time.Second)
+
+	// Write the decoded information to this buffer.
+	var plainData bytes.Buffer
+
+	err = tlock.New(network).Decrypt(&plainData, &cipherData)
+	require.NoError(t, err)
+
+	if !bytes.Equal(plainData.Bytes(), dataFile) {
+		t.Fatalf("decrypted file is invalid; expected %d; got %d", len(dataFile), len(plainData.Bytes()))
+	}
 }
 
 func TestEncryptionWithDuration(t *testing.T) {

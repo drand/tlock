@@ -47,6 +47,78 @@ func Test(t *testing.T) {
 			shouldError: true,
 		},
 		{
+			name: "parsing encrypt with duration, round as well as timestamp fails",
+			flags: []KV{
+				{
+					key:   "TLE_ENCRYPT",
+					value: "true",
+				},
+				{
+					key:   "TLE_DURATION",
+					value: "1d",
+				},
+				{
+					key:   "TLE_ROUND",
+					value: "1",
+				},
+				{
+					key:   "TLE_TIME",
+					value: "2999-04-23T08:15:05Z",
+				},
+			},
+			shouldError: true,
+		},
+		{
+			name: "parsing encrypt with both round and timestamp fails",
+			flags: []KV{
+				{
+					key:   "TLE_ENCRYPT",
+					value: "true",
+				},
+				{
+					key:   "TLE_ROUND",
+					value: "1",
+				},
+				{
+					key:   "TLE_TIME",
+					value: "2999-04-23T08:15:05Z",
+				},
+			},
+			shouldError: true,
+		},
+		{
+			name: "parsing encrypt with both duration and timestamp fails",
+			flags: []KV{
+				{
+					key:   "TLE_ENCRYPT",
+					value: "true",
+				},
+				{
+					key:   "TLE_DURATION",
+					value: "1d",
+				},
+				{
+					key:   "TLE_TIME",
+					value: "2999-04-23T08:15:05Z",
+				},
+			},
+			shouldError: true,
+		},
+		{
+			name: "parsing encrypt with timestamp passes",
+			flags: []KV{
+				{
+					key:   "TLE_ENCRYPT",
+					value: "true",
+				},
+				{
+					key:   "TLE_TIME",
+					value: "2999-04-23T08:15:05Z",
+				},
+			},
+			shouldError: false,
+		},
+		{
 			name: "parsing encrypt with round passes",
 			flags: []KV{
 				{

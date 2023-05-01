@@ -8,7 +8,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"log"
 	"os"
-	"time"
 )
 
 // Default settings.
@@ -24,7 +23,7 @@ const usage = `tlock v1.0.0 -- github.com/drand/tlock
 Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 If input is a string (not a file) 
-	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [--raw_input INPUT]
+	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [--input INPUT]
 
 	tle --decrypt [-o OUTPUT] [INPUT]
 
@@ -180,6 +179,9 @@ func validateFlags(f *Flags) error {
 		if f.Duration == "" && f.Round == 0 && f.Time == "" {
 			return fmt.Errorf("one of -D/--duration, -r/--round or -T/--time must be specified")
 		}
+		if f.Duration != "" && f.Round != 0 {
+			return fmt.Errorf("-D/--duration can't be used with -r/--round")
+		}
 		if f.Duration != "" && f.Time != "" {
 			return fmt.Errorf("-D/--duration can't be used with -T/--time")
 		}
@@ -187,15 +189,11 @@ func validateFlags(f *Flags) error {
 			return fmt.Errorf("-T/--time can't be used with -r/--round")
 		}
 		if f.Time != "" {
-			t, err := time.Parse(time.RFC3339, f.Time)
+			duration, err := timestampToDuration(f.Time)
 			if err != nil {
-				return fmt.Errorf("time format must be RFC3339 (\"2006-01-02T15:04:05Z07:00\")")
+				return err
 			}
-			duration := time.Until(t)
-			if duration <= 0 {
-				return fmt.Errorf("must specify a future time")
-			}
-			f.Duration = fmt.Sprintf("%ds", int(duration.Seconds()))
+			f.Duration = duration
 		}
 	}
 
