@@ -24,8 +24,10 @@ const usage = `tlock v1.0.0 -- github.com/drand/tlock
 Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 	tle --decrypt [-o OUTPUT] [INPUT]
+    tle --metadata
 
 Options:
+    -m, --metadata Displays the metadata of drand network in yaml format.
 	-e, --encrypt  Encrypt the input to the output. Default if omitted.
 	-d, --decrypt  Decrypt the input to the output.
 	-n, --network  The drand API endpoint to use.
@@ -140,11 +142,29 @@ func parseCmdline(f *Flags) {
 
 // validateFlags performs a sanity check of the provided flag information.
 func validateFlags(f *Flags) error {
+	// only one of the three f.Metadata, f.Decrypt or f.Encrypt must be true
+	count := 0
+	if f.Metadata {
+		count++
+	}
+	if f.Encrypt {
+		count++
+	}
+	if f.Decrypt {
+		count++
+	}
+	if count != 1 {
+		return fmt.Errorf("only one of -m/--metadata, -d/--decrypt or -e/--encrypt must be passed")
+	}
 	switch {
-	case f.Decrypt:
-		if f.Encrypt {
-			return fmt.Errorf("-e/--encrypt can't be used with -d/--decrypt")
+	case f.Metadata:
+		if f.Chain == "" {
+			return fmt.Errorf("-c/--chain can't be the empty string")
 		}
+		if f.Network == "" {
+			return fmt.Errorf("-n/--network can't be the empty string")
+		}
+	case f.Decrypt:
 		if f.Duration != "" {
 			return fmt.Errorf("-D/--duration can't be used with -d/--decrypt")
 		}
@@ -161,13 +181,7 @@ func validateFlags(f *Flags) error {
 						"You might want to also specify a custom chainhash with the -c/--chain flag.\n\n")
 			}
 		}
-	case f.Metadata:
-		if f.Chain == "" {
-			return fmt.Errorf("-c/--chain can't be the empty string")
-		}
-		if f.Network == "" {
-			return fmt.Errorf("-n/--network can't be the empty string")
-		}
+		break
 	default:
 		if f.Chain == "" {
 			return fmt.Errorf("-c/--chain can't be empty")
