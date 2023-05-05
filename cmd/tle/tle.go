@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/cmd/tle/commands"
@@ -42,15 +43,19 @@ func run() error {
 	}
 
 	var src io.Reader = os.Stdin
-	if name := flag.Arg(0); name != "" && name != "-" {
-		f, err := os.OpenFile(name, os.O_RDONLY, 0600)
-		if err != nil {
-			return fmt.Errorf("failed to open input file %q: %v", name, err)
+	if rawInput := flags.RawInput; rawInput != "" && rawInput != "-" {
+		src = strings.NewReader(rawInput)
+	} else {
+		if name := flag.Arg(0); name != "" && name != "-" {
+			f, err := os.OpenFile(name, os.O_RDONLY, 0600)
+			if err != nil {
+				return fmt.Errorf("failed to open input file %q: %v", name, err)
+			}
+			defer func(f *os.File) {
+				err = f.Close()
+			}(f)
+			src = f
 		}
-		defer func(f *os.File) {
-			err = f.Close()
-		}(f)
-		src = f
 	}
 
 	var dst io.Writer = os.Stdout
