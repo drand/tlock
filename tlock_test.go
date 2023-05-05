@@ -6,7 +6,6 @@ import (
 	"github.com/drand/drand/crypto"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/stretchr/testify/require"
-	"math/rand"
 	"os"
 	"strings"
 	"testing"
@@ -113,7 +112,6 @@ func TestEncryptionWithTimestamp(t *testing.T) {
 	var cipherData bytes.Buffer
 
 	// Timestamp to duration
-	rand.Seed(time.Now().UnixNano())
 	timestamp := time.Now().Add(4 * time.Second).Format(time.RFC3339)
 	tstamp, err := time.Parse(time.RFC3339, timestamp)
 	require.NoError(t, err)
