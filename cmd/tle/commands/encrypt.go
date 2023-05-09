@@ -130,5 +130,5 @@ func timestampToDuration(timestamp string) (string, error) {
 	if duration <= 0 {
 		return "", fmt.Errorf("must specify a future time")
 	}
-	return fmt.Sprintf("%ds", int(duration.Seconds())), nil
+	return fmt.Sprintf("%ds", uint64(duration.Seconds())), nil
 }
