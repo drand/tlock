@@ -14,6 +14,7 @@ import (
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/encrypt/ibe"
+	"gopkg.in/yaml.v3"
 	"io"
 	"time"
 )
@@ -91,6 +92,31 @@ func (t Tlock) Decrypt(dst io.Writer, src io.Reader) error {
 		return fmt.Errorf("write: %w", err)
 	}
 
+	return nil
+}
+
+// Metadata will return details about the drand network
+func (t Tlock) Metadata(dst io.Writer) (err error) {
+	type Metadata struct {
+		ChainHash string `yaml:"chain_hash"`
+		Current   uint64 `yaml:"current"`
+		PublicKey string `yaml:"public_key"`
+		Scheme    string `yaml:"scheme"`
+	}
+	scheme := t.network.Scheme()
+	metadata := Metadata{
+		ChainHash: t.network.ChainHash(),
+		Current:   t.network.Current(time.Now()),
+		PublicKey: t.network.PublicKey().String(),
+		Scheme:    scheme.String(),
+	}
+	metadataBytes, err := yaml.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("error marshalling metadata: %w", err)
+	}
+	if _, err := dst.Write(metadataBytes); err != nil {
+		return fmt.Errorf("error writing metadata: %w", err)
+	}
 	return nil
 }
 

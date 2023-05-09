@@ -162,6 +162,62 @@ func Test(t *testing.T) {
 			},
 			shouldError: false,
 		},
+		{
+			name: "passing metadata flag",
+			flags: []KV{
+				{
+					key:   "TLE_METADATA",
+					value: "true",
+				},
+			},
+			shouldError: false,
+		},
+		{
+			name: "passing metadata flag along with encrypt",
+			flags: []KV{
+				{
+					key:   "TLE_METADATA",
+					value: "true",
+				},
+				{
+					key:   "TLE_ENCRYPT",
+					value: "true",
+				},
+			},
+			shouldError: true,
+		},
+		{
+			name: "passing metadata flag along with decrypt",
+			flags: []KV{
+				{
+					key:   "TLE_METADATA",
+					value: "true",
+				},
+				{
+					key:   "TLE_DECRYPT",
+					value: "true",
+				},
+			},
+			shouldError: true,
+		},
+		{
+			name: "passing metadata flag along with decrypt and encrypt",
+			flags: []KV{
+				{
+					key:   "TLE_METADATA",
+					value: "true",
+				},
+				{
+					key:   "TLE_DECRYPT",
+					value: "true",
+				},
+				{
+					key:   "TLE_ENCRYPT",
+					value: "true",
+				},
+			},
+			shouldError: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
