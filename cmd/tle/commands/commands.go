@@ -5,9 +5,9 @@ package commands
 import (
 	"flag"
 	"fmt"
-	"github.com/kelseyhightower/envconfig"
 	"log"
 	"os"
+	"github.com/kelseyhightower/envconfig"
 )
 
 // Default settings.
