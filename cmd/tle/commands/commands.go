@@ -23,7 +23,7 @@ const usage = `tlock v1.0.0 -- github.com/drand/tlock
 Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 If input is a string (not a file) 
-	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [--input INPUT]
+	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [--input "INPUT string"]
 
 	tle --decrypt [-o OUTPUT] [INPUT]
 
