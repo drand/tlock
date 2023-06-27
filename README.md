@@ -175,17 +175,17 @@ defer in.Close()
 // Construct a network that can talk to a drand network. Example using the mainnet fastnet network.
 // host:      "https://api.drand.sh/"
 // chainHash: "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
-network := http.NewNetwork(host, chainHash)
-
+network,err := http.NewNetwork(host, chainHash)
+if err != nil {
+	log.Fatalf("new network: %s", err)
+	return
+}
 // Specify how long we need to wait before the file can be decrypted.
 duration := 10 * time.Second
 
 // Use the network to identify the round number that represents the duration.
-roundNumber, err := network.RoundNumber(time.Now().Add(duration))
-if err != nil {
-	log.Fatalf("round by duration: %s", err)
-	return
-}
+roundNumber := network.RoundNumber(time.Now().Add(duration))
+
 
 // Write the encrypted file data to this buffer.
 var cipherData bytes.Buffer
@@ -211,8 +211,11 @@ defer in.Close()
 // Construct a network that can talk to a drand network.
 // host:      "https://api.drand.sh/"
 // chainHash: "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
-network := http.NewNetwork(host, chainHash)
-
+network,err := http.NewNetwork(host, chainHash)
+if err != nil {
+	log.Fatalf("new network: %s", err)
+	return
+}
 // Write the decrypted file data to this buffer.
 var plainData bytes.Buffer
 
