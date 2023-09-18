@@ -97,12 +97,14 @@ If the OUTPUT exists, it will be overwritten.
 
 NETWORK defaults to the drand mainnet endpoint https://api.drand.sh/.
 
-CHAIN defaults to the chainhash of the fastnet network:
+CHAIN defaults to the chainhash of quicknet:
+52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971
+it used to be that of the fastnet network, but that one is being deprecated:
 dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493
 
 You can also use the drand test network:
 https://pl-us.testnet.drand.sh/
-and its unchained network with chain hash 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
+and its unchained network on G2 with chainhash 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
 Note that if you encrypted something prior to March 2023, this was the only available network and used to be the default.
 
 DURATION, when specified, expects a number followed by one of these units:
@@ -112,7 +114,7 @@ Example:
     $ tle -D 10d -o encrypted_file data_to_encrypt
 
 After the specified duration:
-    $ tle -d -o dencrypted_file.txt encrypted_file
+    $ tle -d -o decrypted_file.txt encrypted_file
 ```
 
 #### Timelock Encryption

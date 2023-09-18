@@ -72,7 +72,7 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		return nil, ErrNotUnchained
 	}
 
-	if !(sch.Name == crypto.UnchainedSchemeID || sch.Name == crypto.ShortSigSchemeID) {
+	if !(sch.Name == crypto.UnchainedSchemeID || sch.Name == crypto.ShortSigSchemeID || sch.Name == crypto.SigsOnG1ID) {
 		return nil, ErrNotUnchained
 	}
 
