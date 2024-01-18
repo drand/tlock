@@ -1,0 +1,41 @@
+project_name: tlock
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: tlock
+    binary: tle
+    main: ./cmd/tle/tle.go
+    flags:
+      - -trimpath
+    env:
+      - CGO_ENABLED=0
+    asmflags:
+      - all=-trimpath={{.Env.HOME}}
+    gcflags:
+      - all=-trimpath={{.Env.HOME}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 6
+      - 7
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
+release:
+  prerelease: auto

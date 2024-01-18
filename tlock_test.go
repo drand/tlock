@@ -3,13 +3,16 @@ package tlock_test
 import (
 	"bytes"
 	_ "embed" // Calls init function.
-	"github.com/drand/drand/crypto"
-	bls "github.com/drand/kyber-bls12381"
-	"github.com/stretchr/testify/require"
+	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/drand/drand/crypto"
+	bls "github.com/drand/kyber-bls12381"
+	"github.com/stretchr/testify/require"
 
 	"github.com/drand/drand/chain"
 	"github.com/drand/tlock"
@@ -17,13 +20,15 @@ import (
 )
 
 var (
-	//go:embed test_artifacts/data.txt
+	//go:embed testdata/data.txt
 	dataFile []byte
+	//go:embed testdata/lorem.txt
+	loremBytes []byte
 )
 
 const (
 	testnetHost          = "https://pl-us.testnet.drand.sh/"
-	testnetChainHashOnG2 = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+	testnetUnchainedOnG2 = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
 	testnetQuicknetT     = "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
 	mainnetHost          = "https://api.drand.sh/"
 	mainnetFastnet       = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
@@ -31,7 +36,7 @@ const (
 )
 
 func TestEarlyDecryptionWithDuration(t *testing.T) {
-	for host, hashes := range map[string][]string{testnetHost: {testnetChainHashOnG2, testnetQuicknetT},
+	for host, hashes := range map[string][]string{testnetHost: {testnetUnchainedOnG2, testnetQuicknetT},
 		mainnetHost: {mainnetFastnet, mainnetQuicknet}} {
 		for _, hash := range hashes {
 			network, err := http.NewNetwork(host, hash)
@@ -41,7 +46,7 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 			// Encrypt
 
 			// Read the plaintext data to be encrypted.
-			in, err := os.Open("test_artifacts/data.txt")
+			in, err := os.Open("testdata/data.txt")
 			require.NoError(t, err)
 			defer in.Close()
 
@@ -69,14 +74,14 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 }
 
 func TestEarlyDecryptionWithRound(t *testing.T) {
-	network, err := http.NewNetwork(testnetHost, testnetChainHashOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
 	require.NoError(t, err)
 
 	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
-	in, err := os.Open("test_artifacts/data.txt")
+	in, err := os.Open("testdata/data.txt")
 	require.NoError(t, err)
 	defer in.Close()
 
@@ -102,14 +107,14 @@ func TestEncryptionWithDuration(t *testing.T) {
 		t.Skip("skipping live testing in short mode")
 	}
 
-	network, err := http.NewNetwork(testnetHost, testnetChainHashOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
 	require.NoError(t, err)
 
 	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
-	in, err := os.Open("test_artifacts/data.txt")
+	in, err := os.Open("testdata/data.txt")
 	require.NoError(t, err)
 	defer in.Close()
 
@@ -139,19 +144,80 @@ func TestEncryptionWithDuration(t *testing.T) {
 	}
 }
 
+func TestDecryptVariousChainhashes(t *testing.T) {
+	dir := "./testdata"
+	prefix := "lorem-"
+
+	files, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	require.NoError(t, err)
+
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), prefix) {
+			t.Run("Decrypt-"+file.Name(), func(ts *testing.T) {
+				filePath := filepath.Join(dir, file.Name())
+				cipherData, err := os.Open(filePath)
+				require.NoError(ts, err)
+				var plainData bytes.Buffer
+				err = tlock.New(network).Decrypt(&plainData, cipherData)
+				if errors.Is(err, tlock.ErrWrongChainhash) {
+					require.Contains(ts, file.Name(), "timevault-mainnet-2024")
+					return
+				}
+
+				require.NoError(ts, err)
+
+				if !bytes.Equal(plainData.Bytes(), loremBytes) {
+					ts.Fatalf("decrypted file is invalid; expected %d; got %d:\n %v \n %v", len(loremBytes), len(plainData.Bytes()), loremBytes, plainData.Bytes())
+				}
+			})
+		}
+	}
+}
+
+func TestDecryptStrict(t *testing.T) {
+	dir := "./testdata"
+	prefix := "lorem-"
+
+	files, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	require.NoError(t, err)
+
+	for _, file := range files {
+		if strings.Contains(file.Name(), "testnet-unchained-3s-2024") {
+			continue
+		}
+		if strings.Contains(file.Name(), "timevault-testnet-2024") {
+			continue
+		}
+		if strings.HasPrefix(file.Name(), prefix) {
+			t.Run("DontDecryptStrict-"+file.Name(), func(ts *testing.T) {
+				filePath := filepath.Join(dir, file.Name())
+				cipherData, err := os.Open(filePath)
+				require.NoError(ts, err)
+				var plainData bytes.Buffer
+				err = tlock.New(network).Strict().Decrypt(&plainData, cipherData)
+				require.ErrorIs(ts, err, tlock.ErrWrongChainhash)
+			})
+		}
+	}
+}
+
 func TestEncryptionWithRound(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping live testing in short mode")
 	}
 
-	network, err := http.NewNetwork(testnetHost, testnetChainHashOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
 	require.NoError(t, err)
 
 	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
-	in, err := os.Open("test_artifacts/data.txt")
+	in, err := os.Open("testdata/data.txt")
 	require.NoError(t, err)
 	defer in.Close()
 
@@ -179,7 +245,7 @@ func TestEncryptionWithRound(t *testing.T) {
 }
 
 func TestTimeLockUnlock(t *testing.T) {
-	network, err := http.NewNetwork(testnetHost, testnetChainHashOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
 	require.NoError(t, err)
 
 	futureRound := network.RoundNumber(time.Now())
@@ -250,7 +316,7 @@ z6hgtLUPYvAimgekc+CeyJ8fb/0MVrpq/Ewnx1MpKig8nQ==
 	})
 
 	t.Run("With invalid network", func(tt *testing.T) {
-		network, err := http.NewNetwork(testnetHost, testnetChainHashOnG2)
+		network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
 		require.NoError(tt, err)
 
 		testReader := strings.NewReader(cipher)
@@ -308,7 +374,7 @@ ZEFUb0ZyZS9aSHpyWVkKKwNyX6cuEEENAjic1ew7k8G6vyxDrY5NWFbAhkKy0IrN
 jLK74v9Latit5qAD7Gu/zTIsQXMuCuUf7ma7
 -----END AGE ENCRYPTED FILE-----`
 		expected := "hello world and other things"
-		network, err := http.NewNetwork(testnetHost, testnetChainHashOnG2)
+		network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
 		require.NoError(t, err)
 
 		testReader := strings.NewReader(cipher)

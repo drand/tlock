@@ -2,10 +2,11 @@ package commands
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseDuration(t *testing.T) {
@@ -125,8 +126,8 @@ func TestEncryptionWithDurationOverflow(t *testing.T) {
 	flags := Flags{
 		Encrypt:  true,
 		Decrypt:  false,
-		Network:  defaultNetwork,
-		Chain:    defaultChain,
+		Network:  DefaultNetwork,
+		Chain:    DefaultChain,
 		Round:    0,
 		Duration: "292277042628y",
 		Armor:    false,
@@ -139,8 +140,8 @@ func TestEncryptionWithDurationOverflowUsingOtherUnits(t *testing.T) {
 	flags := Flags{
 		Encrypt:  true,
 		Decrypt:  false,
-		Network:  defaultNetwork,
-		Chain:    defaultChain,
+		Network:  DefaultNetwork,
+		Chain:    DefaultChain,
 		Duration: "292277042627y12m1d",
 		Armor:    false,
 	}

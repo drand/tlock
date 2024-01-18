@@ -2,11 +2,13 @@ package tlock
 
 import (
 	"errors"
-	"filippo.io/age"
 	"fmt"
-	"github.com/drand/drand/chain"
+	"os"
 	"strconv"
 	"time"
+
+	"filippo.io/age"
+	"github.com/drand/drand/chain"
 )
 
 var ErrWrongChainhash = errors.New("invalid chainhash")
@@ -46,17 +48,20 @@ func (t *tleRecipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 // tleIdentity implements the age Identity interface. This is used to decrypt
 // data with the age Decrypt API.
 type tleIdentity struct {
-	network Network
+	network        Network
+	trustChainhash bool
 }
 
 // Unwrap is called by the age Decrypt API and is provided the DEK that was time
 // lock encrypted by the Wrap function via the Stanza. Inside of Unwrap we decrypt
-// the DEK and provide back to age.
+// the DEK and provide back to age. If the ciphertext uses a chainhash different
+// from the one we are current using, we will try switching to it.
 func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 	if len(stanzas) < 1 {
 		return nil, errors.New("check stanzas length: should be at least one")
 	}
 
+	invalid := ""
 	for _, stanza := range stanzas {
 		if stanza.Type != "tlock" {
 			continue
@@ -72,8 +77,16 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 		}
 
 		if t.network.ChainHash() != stanza.Args[1] {
-			return nil, fmt.Errorf("%w: current network uses %s != %s the ciphertext requires.\n"+
-				"Note that is might have been encrypted using our testnet instead", ErrWrongChainhash, t.network.ChainHash(), stanza.Args[1])
+			invalid = stanza.Args[1]
+			if t.trustChainhash {
+				fmt.Fprintf(os.Stderr, "WARN: stanza using different chainhash '%s', trying to use it instead.\n", invalid)
+				err = t.network.SwitchChainHash(invalid)
+				if err != nil {
+					continue
+				}
+			} else {
+				continue
+			}
 		}
 
 		ciphertext, err := BytesToCiphertext(t.network.Scheme(), stanza.Body)
@@ -101,6 +114,11 @@ func (t *tleIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 		}
 
 		return fileKey, nil
+	}
+
+	if len(invalid) > 0 {
+		return nil, fmt.Errorf("%w: current network uses %s != %s the ciphertext requires.\n"+
+			"Note that is might have been encrypted using our testnet instead", ErrWrongChainhash, t.network.ChainHash(), invalid)
 	}
 
 	return nil, fmt.Errorf("check stanza type: wrong type: %w", age.ErrIncorrectIdentity)

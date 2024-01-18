@@ -6,17 +6,18 @@ package tlock
 import (
 	"bufio"
 	"errors"
+	"fmt"
+	"io"
+	"time"
+
 	"filippo.io/age"
 	"filippo.io/age/armor"
-	"fmt"
 	"github.com/drand/drand/chain"
 	"github.com/drand/drand/crypto"
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/encrypt/ibe"
 	"gopkg.in/yaml.v3"
-	"io"
-	"time"
 )
 
 // ErrTooEarly represents an error when a decryption operation happens early.
@@ -33,21 +34,31 @@ type Network interface {
 	PublicKey() kyber.Point
 	Scheme() crypto.Scheme
 	Signature(roundNumber uint64) ([]byte, error)
+	SwitchChainHash(string) error
 }
 
 // =============================================================================
 
 // Tlock provides an API for time lock encryption and decryption.
 type Tlock struct {
-	network Network
+	network        Network
+	trustChainhash bool
 }
 
 // New constructs a tlock for the specified network which can encrypt data that
-// can be decrypted until the future.
+// can be decrypted until the future. By default a new network will trust the
+// chainhash it sees in ciphertexts and try and use these unless Strict was
+// called to prevent it.
 func New(network Network) Tlock {
 	return Tlock{
-		network: network,
+		network:        network,
+		trustChainhash: true,
 	}
+}
+
+func (t Tlock) Strict() Tlock {
+	t.trustChainhash = false
+	return t
 }
 
 // Encrypt will encrypt the source and write that to the destination. The encrypted
@@ -83,7 +94,7 @@ func (t Tlock) Decrypt(dst io.Writer, src io.Reader) error {
 		src = rr
 	}
 
-	r, err := age.Decrypt(src, &tleIdentity{network: t.network})
+	r, err := age.Decrypt(src, &tleIdentity{network: t.network, trustChainhash: t.trustChainhash})
 	if err != nil {
 		return fmt.Errorf("hybrid decrypt: %w", err)
 	}
