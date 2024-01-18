@@ -13,8 +13,10 @@ import (
 
 // Default settings.
 const (
-	defaultNetwork = "https://api.drand.sh/"
-	defaultChain   = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
+	// DefaultNetwork is set to the HTTPs relay from drand, you can also use Cloudflare relay or any other relay.
+	DefaultNetwork = "https://api.drand.sh/"
+	// DefaultChain is set to the League of Entropy quicknet chainhash.
+	DefaultChain = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
 )
 
 // =============================================================================
@@ -88,8 +90,8 @@ func Parse() (Flags, error) {
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
 	f := Flags{
-		Network: defaultNetwork,
-		Chain:   defaultChain,
+		Network: DefaultNetwork,
+		Chain:   DefaultChain,
 	}
 
 	err := envconfig.Process("tle", &f)
@@ -176,8 +178,8 @@ func validateFlags(f *Flags) error {
 		if f.Armor {
 			return fmt.Errorf("-a/--armor can't be used with -d/--decrypt")
 		}
-		if f.Network != defaultNetwork {
-			if f.Chain == defaultChain {
+		if f.Network != DefaultNetwork {
+			if f.Chain == DefaultChain {
 				fmt.Fprintf(os.Stderr,
 					"You've specified a non-default network endpoint but still use the default chain hash.\n"+
 						"You might want to also specify a custom chainhash with the -c/--chain flag.\n\n")
@@ -185,13 +187,20 @@ func validateFlags(f *Flags) error {
 		}
 	default:
 		if f.Chain == "" {
-			return fmt.Errorf("-c/--chain can't be empty")
+			fmt.Fprintf(os.Stderr, "-c/--chain is empty, will default to quicknet chainhash (%s).\n", DefaultChain)
 		}
 		if f.Duration != "" && f.Round != 0 {
 			return fmt.Errorf("-D/--duration can't be used with -r/--round")
 		}
 		if f.Duration == "" && f.Round == 0 {
 			return fmt.Errorf("-D/--duration or -r/--round must be specified")
+		}
+		if f.Network != DefaultNetwork {
+			if f.Chain == DefaultChain {
+				fmt.Fprintf(os.Stderr,
+					"You've specified a non-default network endpoint but still use the default chain hash.\n"+
+						"You might want to also specify a custom chainhash with the -c/--chain flag.\n\n")
+			}
 		}
 	}
 

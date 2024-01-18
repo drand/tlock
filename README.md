@@ -14,7 +14,7 @@ Working endpoints to access it are, on mainnet:
 On mainnet, the only chainhash supporting timelock encryption, with a 3s frequency and signatures on the G1 group is:
 `dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
 
-This is a production-ready network with high-availability guarantees. It is considered fully secure by the drand team 
+This is a production-ready network with high-availability guarantees. It is considered fully secure by the drand team
 and ran by the same League of Entropy that has been running drand in production since 2019.
 
 On testnet:
@@ -249,19 +249,19 @@ $ cat encrypted_data | tle -d | age -d -o data.txt
 
 Note that you could do the same with PGP or any other encryption tool.
 
---- 
+---
 
 ### Security considerations
 
 The security of our timelock encryption mechanism relies on four main things:
 - The security of the underlying [Identity Encryption Scheme](https://crypto.stanford.edu/~dabo/pubs/papers/bfibe.pdf) (proposed in 2001) and [its implementation](https://github.com/drand/kyber/blob/a780ab21355ebe7f60b441a586d5e73a40c564eb/encrypt/ibe/ibe.go#L39-L47) that we're using.
 - The security of the [threshold BLS scheme](https://link.springer.com/content/pdf/10.1007/s00145-004-0314-9.pdf) (proposed in 2003), and [its impementation](https://github.com/drand/kyber/blob/master/sign/tbls/tbls.go) by the network you're relying on.
-- The security of [age](https://age-encryption.org/)'s underlying primitives, and that of the [age implementation](https://age-encryption.org/) we're using to encrypt the data, since we rely on the [hybrid encryption](https://en.wikipedia.org/wiki/Hybrid_cryptosystem) principle, where we only timelock encrypt ("wrap") a random symmetric key that is used by age to actually symmetrically encrypt the data using [Chacha20Poly1305](https://datatracker.ietf.org/doc/html/rfc8439)).  
-- The security of the threshold network providing you with its BLS signatures **at a given frequency**, for instance the default for `tle` is to rely on drand and its existing League of Entropy network. 
- 
-In practice this means that if you trust there are never more than the threshold `t` malicious nodes on the network you're relying on, you are guaranteed that you timelocked data cannot be decrypted earlier than what you intended. 
+- The security of [age](https://age-encryption.org/)'s underlying primitives, and that of the [age implementation](https://age-encryption.org/) we're using to encrypt the data, since we rely on the [hybrid encryption](https://en.wikipedia.org/wiki/Hybrid_cryptosystem) principle, where we only timelock encrypt ("wrap") a random symmetric key that is used by age to actually symmetrically encrypt the data using [Chacha20Poly1305](https://datatracker.ietf.org/doc/html/rfc8439)).
+- The security of the threshold network providing you with its BLS signatures **at a given frequency**, for instance the default for `tle` is to rely on drand and its existing League of Entropy network.
 
-Please note that neither BLS nor the IBE scheme we are relying on are "quantum resistant", therefore shall a Quantum Computer be built that's able to threaten their security, our current design wouldn't resist. There are also no quantum resistant scheme that we're aware of that could be used to replace our current design since post-quantum signatures schemes do not "thresholdize" too well in a post-quantum IBE-compatible way. 
+In practice this means that if you trust there are never more than the threshold `t` malicious nodes on the network you're relying on, you are guaranteed that you timelocked data cannot be decrypted earlier than what you intended.
+
+Please note that neither BLS nor the IBE scheme we are relying on are "quantum resistant", therefore shall a Quantum Computer be built that's able to threaten their security, our current design wouldn't resist. There are also no quantum resistant scheme that we're aware of that could be used to replace our current design since post-quantum signatures schemes do not "thresholdize" too well in a post-quantum IBE-compatible way.
 
 However, such a quantum computer seems unlikely to be built within the next 5-10 years and therefore we currently consider that you can expect a "**long term security**" horizon of at least 5 years by relying on our design.
 
@@ -288,4 +288,3 @@ Therefore, the project is dual-licensed under Apache 2.0 and MIT terms:
 
 - Apache License, Version 2.0, ([LICENSE-APACHE](https://github.com/drand/drand/blob/master/LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
 - MIT license ([LICENSE-MIT](https://github.com/drand/drand/blob/master/LICENSE-MIT) or https://opensource.org/licenses/MIT)
-89 

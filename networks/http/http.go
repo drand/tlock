@@ -6,8 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/drand/drand/chain"
-	"github.com/drand/drand/crypto"
 	"log"
 	"net"
 	"net/http"
@@ -15,7 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/drand/drand/client"
+	"github.com/drand/drand/chain"
+	"github.com/drand/drand/crypto"
+
+	dclient "github.com/drand/drand/client"
 	dhttp "github.com/drand/drand/client/http"
 	"github.com/drand/kyber"
 )
@@ -32,7 +33,8 @@ var ErrNotUnchained = errors.New("not an unchained network")
 // Network represents the network support using the drand http client.
 type Network struct {
 	chainHash string
-	client    client.Client
+	host      string
+	client    dclient.Client
 	publicKey kyber.Point
 	scheme    crypto.Scheme
 	period    time.Duration
@@ -78,6 +80,7 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 
 	network := Network{
 		chainHash: chainHash,
+		host:      host,
 		client:    client,
 		publicKey: info.PublicKey,
 		scheme:    *sch,
@@ -127,6 +130,16 @@ func (n *Network) Signature(roundNumber uint64) ([]byte, error) {
 // time.Now().Add(6*time.Second)
 func (n *Network) RoundNumber(t time.Time) uint64 {
 	return n.client.RoundAt(t)
+}
+
+// SwitchChainHash allows to start using another chainhash on the same host network
+func (n *Network) SwitchChainHash(new string) error {
+	test, err := NewNetwork(n.host, new)
+	if err != nil {
+		return err
+	}
+	*n = *test
+	return nil
 }
 
 // =============================================================================
