@@ -8,14 +8,12 @@ builds:
   - id: tlock
     binary: tle
     main: ./cmd/tle/tle.go
-    flags:
-      - -trimpath
     env:
       - CGO_ENABLED=0
-    asmflags:
-      - all=-trimpath={{.Env.HOME}}
-    gcflags:
-      - all=-trimpath={{.Env.HOME}}
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
     goos:
       - darwin
       - linux
