@@ -78,6 +78,7 @@ func (n *Network) RoundNumber(t time.Time) uint64 {
 }
 
 // SwitchChainHash allows to start using another chainhash on the same host network
-func (n *Network) SwitchChainHash(_ string) error {
-	return errors.New("unsupported function")
+func (n *Network) SwitchChainHash(c string) error {
+	n.chainHash = c
+	return nil
 }

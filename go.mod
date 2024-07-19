@@ -3,7 +3,7 @@ module github.com/drand/tlock
 go 1.20
 
 require (
-	filippo.io/age v1.2.1-0.20240618100233-2035f9523c8b
+	filippo.io/age v1.2.1-0.20240621125216-8734a853bcdf
 	github.com/drand/drand v1.5.11
 	github.com/drand/kyber v1.3.1
 	github.com/drand/kyber-bls12381 v0.3.1

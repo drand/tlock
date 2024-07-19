@@ -1,6 +1,6 @@
 c2sp.org/CCTV/age v0.0.0-20240306222714-3ec4d716e805 h1:u2qwJeEvnypw+OCPUHmoZE3IqwfuN5kgDfo5MLzpNM0=
-filippo.io/age v1.2.1-0.20240618100233-2035f9523c8b h1:rYuRyt89nCNN0oPb+owSTFa3zAJr3CsOC187G4+Uq3c=
-filippo.io/age v1.2.1-0.20240618100233-2035f9523c8b/go.mod h1:JL9ew2lTN+Pyft4RiNGguFfOpewKwSHm5ayKD/A4004=
+filippo.io/age v1.2.1-0.20240621125216-8734a853bcdf h1:h5r1/hjjyn9Abz1g1pvVGE20Gqgh0rvUFdS6sWHceFY=
+filippo.io/age v1.2.1-0.20240621125216-8734a853bcdf/go.mod h1:JL9ew2lTN+Pyft4RiNGguFfOpewKwSHm5ayKD/A4004=
 github.com/BurntSushi/toml v1.4.0 h1:kuoIxZQy2WRRk1pttg9asf+WVv6tWQuBNVmK8+nqPr0=
 github.com/BurntSushi/toml v1.4.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/ardanlabs/darwin/v2 v2.0.0 h1:XCisQMgQ5EG+ZvSEcADEo+pyfIMKyWAGnn5o2TgriYE=
