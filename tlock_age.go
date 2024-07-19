@@ -1,10 +1,12 @@
 package tlock
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"filippo.io/age"
@@ -41,6 +43,21 @@ func (t *Recipient) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 	}
 
 	return []*age.Stanza{&stanza}, nil
+}
+
+func (t *Recipient) String() string {
+	sb := strings.Builder{}
+
+	sb.WriteString(fmt.Sprintf("%d@", t.RoundNumber))
+	sb.WriteString(t.Network.ChainHash())
+	sb.WriteString("-" + t.Network.Scheme().Name)
+	d, err := t.Network.PublicKey().MarshalBinary()
+	if err != nil {
+		d = []byte("error")
+	}
+	sb.WriteString("-" + hex.EncodeToString(d))
+
+	return sb.String()
 }
 
 // =============================================================================
@@ -122,4 +139,15 @@ func (t *Identity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("check stanza type: wrong type: %w", age.ErrIncorrectIdentity)
+}
+
+func (t *Identity) String() string {
+	sb := strings.Builder{}
+
+	sb.WriteString(fmt.Sprintf("Trust:%v@", t.TrustChainhash))
+	sb.WriteString(t.Network.ChainHash())
+	sb.WriteString("-" + t.Network.Scheme().Name)
+	sb.WriteString("-" + t.Network.PublicKey().String())
+
+	return sb.String()
 }

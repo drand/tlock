@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -9,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"filippo.io/age"
 	page "filippo.io/age/plugin"
@@ -22,17 +25,21 @@ import (
 )
 
 // using quicknet by default
-var DefaultChainhash = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
-var DefaultPK = "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"
-var DefaultPeriod = 3
-var DefaultGenesis int64 = 1692803367
-var DefaultHost = "http://api.drand.sh/"
+var (
+	DefaultChainhash       = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
+	DefaultPK              = "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"
+	DefaultPeriod          = 3
+	DefaultGenesis   int64 = 1692803367
+	DefaultRemote          = "http://api.drand.sh/"
+)
 
 func main() {
 	// we setup the flags we need
 	fs := flag.NewFlagSet("age-plugin-tlock", flag.ExitOnError)
 	isKeyGen := fs.Bool("keygen", false, "Generate a test keypair")
-	//chainHash := fs.String("chainhash", "", "The chainhash you want to encrypt towards. Default to the 'quicknet' one")
+
+	//chainHash := fs.String("chainhash", DefaultChainhash, "The chainhash you want to encrypt towards. Default to the 'quicknet' one")
+	//remote := fs.String("remote", DefaultRemote, "The remote endpoint you want to use for getting data. Default to 'https://api.drand.sh'.")
 
 	p, err := page.New("tlock")
 	if err != nil {
@@ -51,24 +58,82 @@ func main() {
 	}
 
 	if *isKeyGen {
-		if len(os.Args) < 3 {
-			log.Fatal("Usage of keygen:\n\t - providing a http endpoint: age-plugin-tlock -keygen http://api.drand.sh/\n\t - providing a public key and a chainhash \n\t - providing a public key, a chainhash and the signature for the round you're interested in")
-		}
+		//if len(os.Args) < 1 {
+		//	log.Fatal("Usage of keygen:\n\t " +
+		//		"- providing a http endpoint: age-plugin-tlock -keygen http://api.drand.sh/\n\t " +
+		//		//"- providing a public key and a chainhash \n\t " +
+		//		//"- providing a public key, a chainhash and the signature for the round you're interested in"+
+		//		"")
+		//}
+		//httpId := append([]byte{0x01}, []byte(os.Args[len(os.Args)-1])...)
 
-		httpId := append([]byte{0x01}, []byte(os.Args[len(os.Args)-1])...)
-		pub := page.EncodeRecipient(p.Name(), httpId)
+		id := append([]byte{0x02}, []byte("interactive")...)
+
+		pub := page.EncodeRecipient(p.Name(), id)
 		fmt.Println("recipient:", pub)
-		priv := page.EncodeIdentity(p.Name(), httpId)
+		priv := page.EncodeIdentity(p.Name(), id)
 		fmt.Println("identity:", priv)
 	} else {
 		p.Main()
 	}
 }
 
-// createRecipient creates recipients of the form:
+//
+//{
+//	log.Fatal(
+//"Please specify the round number you want to encrypt towards as the last positional argument of the keygen. " +
+//"By default this creates a recipient to encrypts towards the mainnet quicknet network and remote relays without using networking, " +
+//"use the -remote and -chainhash flags to specify another one if needed, this will use HTTP to query the remote")
+//}
+//round, err := strconv.Atoi(os.Args[len(os.Args)-1])
+//if err != nil || round < 0 {
+//log.Fatalf("invalid integer for round %d:%v", round, err)
+//}
+
 // age1tlock1<HASH><PUBLIC_KEY><GENESIS><PERIOD>
-func createRecipient(chainhash, pk, genesis, period string) ([]byte, error) {
-	return nil, nil
+// age1tlock1yrda2pkkaamwtuux7swx28wtszx9hj7h23cucn40506d77k5unzfxc9qhp32w5nlaca8xx7tty5q4d4t6ck4czmw5q7ufh0kvyhaljwsruqux92z2sthryp5wh43a3npt7xsmu9ckmww8pvpr4kulr97lwr4ne0xz63al5z5ey5fgpmxmxjmnku3uwmf0ewhp2t4rq0qqlu8ljj7lng8rlmrqvpvft27
+//
+//var data []byte
+//
+//if *chainHash == commands.DefaultChain && *remote == commands.DefaultNetwork {
+//pkb, err := hex.DecodeString("83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a")
+//if err != nil {
+//log.Fatal(err)
+//}
+//
+//hashb, err := hex.DecodeString(commands.DefaultChain)
+//if err != nil {
+//log.Fatal(err)
+//}
+//data = EncodeRecipient(hashb, pkb, int64(defaultGenesis), defaultPeriod, int64(round))
+//}
+//
+//pub := page.EncodeRecipient(p.Name(), data)
+//}
+
+// createRecipient creates data for recipients of the form:
+// age1tlock1<HASH><PUBLIC_KEY><GENESIS><PERIOD><ROUND(optional)>
+func createRecipient(chainhash []byte, publicKey []byte, genesis int64, period int, round int64) []byte {
+	b := bytes.Buffer{}
+	// we follow the tlock-ts encoding that uses https://github.com/bincode-org/bincode/blob/trunk/docs/spec.md
+	b.Write(append([]byte{byte(len(chainhash))}, chainhash...))
+	b.Write(append([]byte{byte(len(publicKey))}, publicKey...))
+	// varint encoding of genesis
+	b.Write(intEncode(int64(genesis)))
+	b.Write(intEncode(int64(period)))
+	if round > 0 {
+		b.Write(intEncode(int64(round)))
+	}
+	return b.Bytes()
+}
+
+func intEncode(val int64) []byte {
+	buf := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutVarint(buf, val)
+
+	fmt.Fprintln(os.Stderr, "Encoded int", val, "into", n, "bytes:", buf[:n])
+
+	return buf[:n]
 }
 
 func decodePublicKey(pks string) (kyber.Point, *crypto.Scheme, error) {
@@ -263,6 +328,62 @@ func (p interactive) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 // The beck32 data contains: <HASH><PUBLIC_KEY><GENESIS><PERIOD><ROUND>
 func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 	return func(data []byte) (age.Recipient, error) {
-		return interactive{p: p}, nil
+		// RAW mode
+		if data[0] == 0 {
+			fmt.Fprintln(os.Stderr, "bech len", len(data))
+			chainhash := data[:32]
+			var pk kyber.Point
+			var scheme *crypto.Scheme
+			offset := 0
+			if len(data) >= 1+32+1+1+1+1 && len(data) <= 1+32+1+48+8+8+8 {
+				pk = new(bls.KyberG1)
+				offset = 48
+				scheme = crypto.NewPedersenBLSUnchained()
+			} else if len(data) >= 1+32+1+96+1+1+1 && len(data) <= 1+32+1+96+8+8+8 {
+				pk = new(bls.KyberG2)
+				offset = 96
+				scheme = crypto.NewPedersenBLSUnchainedG1()
+			} else {
+				return nil, fmt.Errorf("invalid len %d for tlock recipient", len(data))
+			}
+			if err := pk.UnmarshalBinary(data[1+32+1 : 1+32+1+offset]); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+			}
+
+			r := bytes.NewReader(data[1+32+1+offset:])
+			genesis, err := binary.ReadVarint(r)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read genesis: %w", err)
+			}
+			period, err := binary.ReadVarint(r)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read genesis: %w", err)
+			}
+			round, err := binary.ReadUvarint(r)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read genesis: %w", err)
+			}
+
+			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
+
+			return &tlock.Recipient{
+				Network:     network,
+				RoundNumber: round,
+			}, err
+		}
+		if data[0] == 1 {
+			panic("unimplemented for now")
+			//network := http.NewNetwork()
+			//
+			//return &tlock.Recipient{
+			//	Network:     network,
+			//	RoundNumber: round,
+			//}, err
+		}
+
+		if data[0] == 2 && p != nil {
+			return interactive{p: p}, nil
+		}
+		return nil, fmt.Errorf("unknown identity type: %x", data[0])
 	}
 }
