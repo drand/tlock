@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -39,7 +40,7 @@ func main() {
 	isKeyGen := fs.Bool("keygen", false, "Generate a test keypair")
 
 	//chainHash := fs.String("chainhash", DefaultChainhash, "The chainhash you want to encrypt towards. Default to the 'quicknet' one")
-	//remote := fs.String("remote", DefaultRemote, "The remote endpoint you want to use for getting data. Default to 'https://api.drand.sh'.")
+	//remote := fs.String("remote", DefaultRemote, "The remote endpoint you want to use for getting data. Default to 'https://api.drand.sh'. If using a chainhash, https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971 will override the default one as well")
 
 	p, err := page.New("tlock")
 	if err != nil {
@@ -58,58 +59,55 @@ func main() {
 	}
 
 	if *isKeyGen {
-		//if len(os.Args) < 1 {
-		//	log.Fatal("Usage of keygen:\n\t " +
-		//		"- providing a http endpoint: age-plugin-tlock -keygen http://api.drand.sh/\n\t " +
-		//		//"- providing a public key and a chainhash \n\t " +
-		//		//"- providing a public key, a chainhash and the signature for the round you're interested in"+
-		//		"")
-		//}
-		//httpId := append([]byte{0x01}, []byte(os.Args[len(os.Args)-1])...)
+		data := []byte{}
+		l := len(os.Args)
+		switch {
+		case l < 3:
+			data = append([]byte{0x02}, []byte("interactive")...)
+		case l == 3:
+			host, err := url.Parse(os.Args[l-1])
+			if err != nil {
+				log.Fatal("invalid URL provided in keygen")
+			}
+			data = append([]byte{0x01}, []byte(host.String())...)
+		case l == 4:
+			pkb, err := hex.DecodeString(os.Args[2])
+			if err != nil {
+				log.Fatal("invalid public key hex provided in keygen")
+			}
+			chb, err := hex.DecodeString(os.Args[3])
+			if err != nil {
+				log.Fatal("invalid chainhash hex provided in keygen")
+			}
 
-		id := append([]byte{0x02}, []byte("interactive")...)
+			data = append([]byte{0x00}, pkb...)
+			data = append(data, chb...)
 
-		pub := page.EncodeRecipient(p.Name(), id)
+			//case l == 5:
+		default:
+			Usage()
+		}
+
+		pub := page.EncodeRecipient(p.Name(), data)
 		fmt.Println("recipient:", pub)
-		priv := page.EncodeIdentity(p.Name(), id)
+		priv := page.EncodeIdentity(p.Name(), data)
 		fmt.Println("identity:", priv)
-	} else {
-		p.Main()
+
+		return
 	}
+
+	p.Main()
+
 }
 
-//
-//{
-//	log.Fatal(
-//"Please specify the round number you want to encrypt towards as the last positional argument of the keygen. " +
-//"By default this creates a recipient to encrypts towards the mainnet quicknet network and remote relays without using networking, " +
-//"use the -remote and -chainhash flags to specify another one if needed, this will use HTTP to query the remote")
-//}
-//round, err := strconv.Atoi(os.Args[len(os.Args)-1])
-//if err != nil || round < 0 {
-//log.Fatalf("invalid integer for round %d:%v", round, err)
-//}
-
-// age1tlock1<HASH><PUBLIC_KEY><GENESIS><PERIOD>
-// age1tlock1yrda2pkkaamwtuux7swx28wtszx9hj7h23cucn40506d77k5unzfxc9qhp32w5nlaca8xx7tty5q4d4t6ck4czmw5q7ufh0kvyhaljwsruqux92z2sthryp5wh43a3npt7xsmu9ckmww8pvpr4kulr97lwr4ne0xz63al5z5ey5fgpmxmxjmnku3uwmf0ewhp2t4rq0qqlu8ljj7lng8rlmrqvpvft27
-//
-//var data []byte
-//
-//if *chainHash == commands.DefaultChain && *remote == commands.DefaultNetwork {
-//pkb, err := hex.DecodeString("83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a")
-//if err != nil {
-//log.Fatal(err)
-//}
-//
-//hashb, err := hex.DecodeString(commands.DefaultChain)
-//if err != nil {
-//log.Fatal(err)
-//}
-//data = EncodeRecipient(hashb, pkb, int64(defaultGenesis), defaultPeriod, int64(round))
-//}
-//
-//pub := page.EncodeRecipient(p.Name(), data)
-//}
+func Usage() {
+	log.Fatal("Usage of keygen:\n\t " +
+		"- use age in interactive mode, getting prompted for all required data:\n\t\t\tage-plugin-tlock -keygen\n\t" +
+		"- providing a http endpoint (works for both encryption and decryption, but require networking): \n\t\t\tage-plugin-tlock -keygen http://api.drand.sh/\n\t " +
+		"- providing a public key and a chainhash (requires networking to fetch genesis and period, but is networkless afterwards): \n\t\t\tage-plugin-tlock -keygen hexadecimalkey hexadecimalchainhash \n\t " +
+		//"- providing a public key, a chainhash and the signature for the round you're interested in (networkless for decryption): \n\t\t\tage-plugin-tlock -keygen" +
+		"\n")
+}
 
 // createRecipient creates data for recipients of the form:
 // age1tlock1<HASH><PUBLIC_KEY><GENESIS><PERIOD><ROUND(optional)>
@@ -186,21 +184,13 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 				return nil, err
 			}
 		} else if data[0] == 1 {
-			s := strings.TrimRight(string(data[2:]), "/")
-			urls := strings.Split(s, "/")
-			chainhash := urls[len(urls)-1]
-			if len(chainhash) == 64 {
-				urls = urls[:len(urls)-1]
-				fmt.Fprintln(os.Stderr, "using chainhash from endpoint", chainhash)
-			} else {
-				chainhash = commands.DefaultChain
-			}
-			network, err = http.NewNetwork(strings.Join(urls, "/"), chainhash)
+			network, err = ParseNetwork(string(data[2:]))
 		} else if data[0] == 2 {
 			// interactive mode
 			return interactive{p: p}, nil
 		} else {
-			fmt.Fprintln(os.Stderr, "unknown type:", data[0])
+			fmt.Fprintln(os.Stderr, "unknown tlock identity type:", data[0])
+			fmt.Fprintln(os.Stderr, "defaulting to interactive mode")
 			return interactive{p: p}, nil
 		}
 
@@ -266,9 +256,12 @@ func (i interactive) requestRound() (uint64, error) {
 func (i interactive) requestNetwork(chainhash, round string) (tlock.Network, error) {
 	if chainhash == "" {
 		var err error
-		chainhash, err = i.p.RequestValue("please provide the chainhash of the network you want to work with", false)
+		chainhash, err = i.p.RequestValue("please provide the chainhash of the network you want to work with (an empty value will use the default one)", false)
 		if err != nil {
 			return nil, err
+		}
+		if chainhash == "" {
+			chainhash = DefaultChainhash
 		}
 	}
 	usePK, err := i.p.Confirm("do you want to provide the group public key and round signature, or do you want to use a HTTP relay?", "use public key", "use HTTP relay")
@@ -276,9 +269,12 @@ func (i interactive) requestNetwork(chainhash, round string) (tlock.Network, err
 		return nil, fmt.Errorf("confirmation error in Unwrap: %w", err)
 	}
 	if usePK {
-		pks, err := i.p.RequestValue("Please provide the hex encoded public key for the chainhash "+chainhash, false)
-		if err != nil {
-			return nil, err
+		pks := DefaultPK
+		if chainhash != DefaultChainhash {
+			pks, err = i.p.RequestValue("Please provide the hex encoded public key for the chainhash "+chainhash, false)
+			if err != nil {
+				return nil, err
+			}
 		}
 		pk, sch, err := decodePublicKey(pks)
 		if err != nil {
@@ -298,9 +294,12 @@ func (i interactive) requestNetwork(chainhash, round string) (tlock.Network, err
 		return fixed.NewNetwork(chainhash, pk, sch, 0, 0, sig)
 	}
 
-	host, err := i.p.RequestValue("Please provide the http relay for chainhash "+chainhash, false)
+	host, err := i.p.RequestValue("Please provide the http relay for chainhash (an empty value will use the default one)"+chainhash, false)
 	if err != nil {
 		return nil, err
+	}
+	if host == "" {
+		host = DefaultRemote
 	}
 	return http.NewNetwork(host, chainhash)
 }
@@ -330,7 +329,6 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 	return func(data []byte) (age.Recipient, error) {
 		// RAW mode
 		if data[0] == 0 {
-			fmt.Fprintln(os.Stderr, "bech len", len(data))
 			chainhash := data[:32]
 			var pk kyber.Point
 			var scheme *crypto.Scheme
@@ -350,6 +348,7 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
 			}
 
+			// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
 			r := bytes.NewReader(data[1+32+1+offset:])
 			genesis, err := binary.ReadVarint(r)
 			if err != nil {
@@ -357,33 +356,57 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 			}
 			period, err := binary.ReadVarint(r)
 			if err != nil {
-				return nil, fmt.Errorf("unable to read genesis: %w", err)
+				return nil, fmt.Errorf("unable to read period: %w", err)
 			}
-			round, err := binary.ReadUvarint(r)
+			round, err := binary.ReadVarint(r)
 			if err != nil {
-				return nil, fmt.Errorf("unable to read genesis: %w", err)
+				return nil, fmt.Errorf("unable to read round: %w", err)
 			}
 
+			// TODO: handle above VarInt properly, optionnaly prompt user for round value?
+
 			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
+
+			return &tlock.Recipient{
+				Network:     network,
+				RoundNumber: uint64(round),
+			}, err
+		}
+		if data[0] == 1 {
+			network, err := ParseNetwork(string(data[1:]))
+			if err != nil {
+				log.Fatal("invalid URL provided in keygen")
+			}
+
+			fmt.Println("please provide the round number you want to encrypt towards")
+			var round uint64
+			fmt.Scanf("%d", &round)
 
 			return &tlock.Recipient{
 				Network:     network,
 				RoundNumber: round,
 			}, err
 		}
-		if data[0] == 1 {
-			panic("unimplemented for now")
-			//network := http.NewNetwork()
-			//
-			//return &tlock.Recipient{
-			//	Network:     network,
-			//	RoundNumber: round,
-			//}, err
-		}
 
 		if data[0] == 2 && p != nil {
 			return interactive{p: p}, nil
 		}
-		return nil, fmt.Errorf("unknown identity type: %x", data[0])
+
+		return nil, fmt.Errorf("unknown identity type: %v", data[0])
 	}
+}
+
+func ParseNetwork(u string) (tlock.Network, error) {
+	s := strings.TrimRight(u, "/")
+	urls := strings.Split(s, "/")
+	chainhash := urls[len(urls)-1]
+	if len(chainhash) == 64 {
+		urls = urls[:len(urls)-1]
+		fmt.Fprintln(os.Stderr, "using chainhash from endpoint", chainhash)
+	} else {
+		fmt.Fprintln(os.Stderr, "using default chainhash", chainhash)
+		chainhash = commands.DefaultChain
+	}
+	return http.NewNetwork(strings.Join(urls, "/"), chainhash)
+
 }
