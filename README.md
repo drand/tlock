@@ -161,9 +161,9 @@ If decoding an armored source you don't need to specify `-a` again.
 
 ### Library Usage
 
-These example show how to use the API to time lock encrypt and decrypt data.
+These example show how to use the API to timelock encrypt and decrypt data.
 
-#### Time Lock Encryption
+#### Timelock Encryption
 
 ```go
 // Open an io.Reader to the data to be encrypted.
@@ -199,7 +199,7 @@ if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
 }
 ```
 
-#### Time Lock Decryption
+#### Timelock Decryption
 
 ```go
 // Open an io.Reader to the data to be decrypted.

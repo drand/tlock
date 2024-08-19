@@ -35,7 +35,7 @@ var (
 )
 
 func main() {
-	// we setup the flags we need
+	// we set up the flags we need
 	fs := flag.NewFlagSet("age-plugin-tlock", flag.ExitOnError)
 	isKeyGen := fs.Bool("keygen", false, "Generate a test keypair")
 
@@ -104,7 +104,7 @@ func Usage() {
 	log.Fatal("Usage of keygen:\n\t " +
 		"- use age in interactive mode, getting prompted for all required data:\n\t\t\tage-plugin-tlock -keygen\n\t" +
 		"- providing a http endpoint (works for both encryption and decryption, but require networking): \n\t\t\tage-plugin-tlock -keygen http://api.drand.sh/\n\t " +
-		"- providing a public key and a chainhash (requires networking to fetch genesis and period, but is networkless afterwards): \n\t\t\tage-plugin-tlock -keygen hexadecimalkey hexadecimalchainhash \n\t " +
+		"- providing a public key and a chainhash (requires networking to fetch genesis and period, but is networkless afterwards): \n\t\t\tage-plugin-tlock -keygen <hexadecimal-public-key> <hexadecimal-chainhash> \n\t " +
 		//"- providing a public key, a chainhash and the signature for the round you're interested in (networkless for decryption): \n\t\t\tage-plugin-tlock -keygen" +
 		"\n")
 }
@@ -193,12 +193,8 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 			fmt.Fprintln(os.Stderr, "defaulting to interactive mode")
 			return interactive{p: p}, nil
 		}
-
-		return &tlock.Identity{
-			Network: network,
-			// we need to have tlock use the SwitchChainHash on the fixed network for it to work
-			TrustChainhash: true,
-		}, err
+		// we need to have tlock use the SwitchChainHash on the fixed network for it to work
+		return tlock.NewIdentity(network, true), err
 	}
 }
 
@@ -238,10 +234,8 @@ func (i interactive) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 		return nil, err
 	}
 
-	id := tlock.Identity{
-		Network:        network,
-		TrustChainhash: true,
-	}
+	id := tlock.NewIdentity(network, true)
+
 	return id.Unwrap(stanzas)
 }
 
@@ -315,10 +309,7 @@ func (p interactive) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 		return nil, err
 	}
 
-	rec := tlock.Recipient{
-		Network:     net,
-		RoundNumber: round,
-	}
+	rec := tlock.NewRecipient(net, round)
 
 	return rec.Wrap(fileKey)
 }
@@ -363,14 +354,11 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 				return nil, fmt.Errorf("unable to read round: %w", err)
 			}
 
-			// TODO: handle above VarInt properly, optionnaly prompt user for round value?
+			// TODO: handle above VarInt properly, optionally prompt user for round value?
 
 			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
 
-			return &tlock.Recipient{
-				Network:     network,
-				RoundNumber: uint64(round),
-			}, err
+			return tlock.NewRecipient(network, uint64(round)), err
 		}
 		if data[0] == 1 {
 			network, err := ParseNetwork(string(data[1:]))
@@ -382,10 +370,7 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 			var round uint64
 			fmt.Scanf("%d", &round)
 
-			return &tlock.Recipient{
-				Network:     network,
-				RoundNumber: round,
-			}, err
+			return tlock.NewRecipient(network, round), err
 		}
 
 		if data[0] == 2 && p != nil {

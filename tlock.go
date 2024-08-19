@@ -1,5 +1,5 @@
 // Package tlock provides an API for encrypting/decrypting data using
-// drand time lock encryption. This allows data to be encrypted and only
+// drand timelock encryption. This allows data to be encrypted and only
 // decrypted in the future.
 package tlock
 
@@ -39,7 +39,7 @@ type Network interface {
 
 // =============================================================================
 
-// Tlock provides an API for time lock encryption and decryption.
+// Tlock provides an API for timelock encryption and decryption.
 type Tlock struct {
 	network        Network
 	trustChainhash bool
@@ -64,7 +64,7 @@ func (t Tlock) Strict() Tlock {
 // Encrypt will encrypt the source and write that to the destination. The encrypted
 // data will not be decryptable until the specified round is reached by the network.
 func (t Tlock) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) (err error) {
-	w, err := age.Encrypt(dst, &Recipient{Network: t.network, RoundNumber: roundNumber})
+	w, err := age.Encrypt(dst, &Recipient{network: t.network, roundNumber: roundNumber})
 	if err != nil {
 		return fmt.Errorf("hybrid encrypt: %w", err)
 	}
@@ -94,7 +94,7 @@ func (t Tlock) Decrypt(dst io.Writer, src io.Reader) error {
 		src = rr
 	}
 
-	r, err := age.Decrypt(src, &Identity{Network: t.network, TrustChainhash: t.trustChainhash})
+	r, err := age.Decrypt(src, &Identity{network: t.network, trustChainhash: t.trustChainhash})
 	if err != nil {
 		return fmt.Errorf("hybrid decrypt: %w", err)
 	}

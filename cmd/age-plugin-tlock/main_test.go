@@ -39,12 +39,9 @@ func TestNewIdentity(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "valid-tlock-rs",
-			data: data,
-			want: &tlock.Identity{
-				Network:        network,
-				TrustChainhash: true,
-			},
+			name:    "valid-tlock-rs",
+			data:    data,
+			want:    tlock.NewIdentity(network, true),
 			wantErr: false,
 		},
 	}
@@ -81,10 +78,7 @@ func TestNewRecipient(t *testing.T) {
 		{
 			"valid",
 			data,
-			&tlock.Recipient{
-				Network:     network,
-				RoundNumber: 3,
-			},
+			tlock.NewRecipient(network, 3),
 			false,
 		},
 	}
