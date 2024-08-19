@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/drand/drand/chain"
-	"github.com/drand/drand/crypto"
+	chain "github.com/drand/drand/v2/common"
+	"github.com/drand/drand/v2/crypto"
 
-	dclient "github.com/drand/drand/client"
-	dhttp "github.com/drand/drand/client/http"
+	dhttp "github.com/drand/go-clients/client/http"
+	dclient "github.com/drand/go-clients/drand"
 	"github.com/drand/kyber"
 )
 
@@ -56,7 +56,7 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		return nil, fmt.Errorf("decoding chain hash: %w", err)
 	}
 
-	client, err := dhttp.New(host, hash, transport())
+	client, err := dhttp.New(context.Background(), nil, host, hash, transport())
 	if err != nil {
 		return nil, fmt.Errorf("creating client: %w", err)
 	}
@@ -122,7 +122,7 @@ func (n *Network) Signature(roundNumber uint64) ([]byte, error) {
 		return nil, err
 	}
 
-	return result.Signature(), nil
+	return result.GetSignature(), nil
 }
 
 // RoundNumber will return the latest round of randomness that is available
@@ -156,6 +156,6 @@ func transport() *http.Transport {
 		MaxIdleConns:          2,
 		IdleConnTimeout:       5 * time.Second,
 		TLSHandshakeTimeout:   5 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+		ExpectContinueTimeout: 2 * time.Second,
 	}
 }

@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drand/drand/crypto"
+	chain "github.com/drand/drand/v2/common"
+	"github.com/drand/drand/v2/crypto"
 	bls "github.com/drand/kyber-bls12381"
-	"github.com/stretchr/testify/require"
-
-	"github.com/drand/drand/chain"
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/networks/http"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (

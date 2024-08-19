@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"filippo.io/age"
-	"github.com/drand/drand/chain"
+	chain "github.com/drand/drand/v2/common"
 )
 
 var ErrWrongChainhash = errors.New("invalid chainhash")
