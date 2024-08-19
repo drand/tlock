@@ -2,8 +2,6 @@ module github.com/drand/tlock
 
 go 1.22
 
-toolchain go1.22.4
-
 require (
 	filippo.io/age v1.1.1
 	github.com/drand/drand/v2 v2.0.2
