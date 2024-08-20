@@ -27,10 +27,10 @@ var (
 )
 
 const (
-	testnetHost          = "https://pl-us.testnet.drand.sh/"
+	testnetHost          = "http://pl-us.testnet.drand.sh/"
 	testnetUnchainedOnG2 = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
 	testnetQuicknetT     = "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
-	mainnetHost          = "https://api.drand.sh/"
+	mainnetHost          = "http://api.drand.sh/"
 	mainnetFastnet       = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 	mainnetQuicknet      = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
 )
@@ -245,7 +245,7 @@ func TestEncryptionWithRound(t *testing.T) {
 }
 
 func TestTimeLockUnlock(t *testing.T) {
-	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetQuicknetT)
 	require.NoError(t, err)
 
 	futureRound := network.RoundNumber(time.Now())

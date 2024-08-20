@@ -87,8 +87,6 @@ type Flags struct {
 // Parse will parse the environment variables and command line flags. The command
 // line flags will overwrite environment variables. Validation takes place.
 func Parse() (Flags, error) {
-	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
-
 	f := Flags{
 		Network: DefaultNetwork,
 		Chain:   DefaultChain,
@@ -110,6 +108,7 @@ func Parse() (Flags, error) {
 // parseCmdline will parse all the command line flags.
 // The default value is set to the values parsed by the environment variables.
 func parseCmdline(f *Flags) {
+	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s\n", usage) }
 
 	flag.BoolVar(&f.Encrypt, "e", f.Encrypt, "encrypt the input to the output")
 	flag.BoolVar(&f.Encrypt, "encrypt", f.Encrypt, "encrypt the input to the output")
