@@ -2,9 +2,11 @@ package commands
 
 import (
 	"flag"
-	"github.com/stretchr/testify/require"
+	"io"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type KV struct {
@@ -221,24 +223,27 @@ func Test(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			for _, flag := range test.flags {
-				f := flag
-				require.NoError(t, os.Setenv(f.key, f.value))
-			}
+			flag.CommandLine = flag.NewFlagSet("testcommandline", flag.ContinueOnError)
+			r, w, _ := os.Pipe()
+			defer require.NoError(t, r.Close())
+			defer require.NoError(t, w.Close())
+			flag.CommandLine.SetOutput(w)
 
+			for _, f := range test.flags {
+				require.NoError(t, os.Setenv(f.key, f.value))
+				t.Cleanup(func() {
+					require.NoError(t, os.Unsetenv(f.key))
+				})
+			}
 			_, err := Parse()
+
 			if test.shouldError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				out, _ := io.ReadAll(r)
+				require.NotContains(t, string(out), "flag provided but not defined")
 			}
-
-			for _, flag := range test.flags {
-				f := flag
-				require.NoError(t, os.Unsetenv(f.key))
-			}
-
-			flag.CommandLine = flag.NewFlagSet("this seems to work with nonsense in it", 0)
 		})
 	}
 }
