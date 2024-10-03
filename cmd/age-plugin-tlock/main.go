@@ -16,7 +16,7 @@ import (
 
 	"filippo.io/age"
 	page "filippo.io/age/plugin"
-	"github.com/drand/drand/crypto"
+	"github.com/drand/drand/v2/crypto"
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/tlock"
