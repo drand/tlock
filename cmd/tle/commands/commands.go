@@ -21,7 +21,7 @@ const (
 
 // =============================================================================
 
-const usage = `tlock v1.2.0 -- github.com/drand/tlock
+const usage = `tlock v1.3.0 -- github.com/drand/tlock
 
 Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
@@ -46,8 +46,6 @@ NETWORK defaults to the drand mainnet endpoint https://api.drand.sh/.
 
 CHAIN defaults to the chainhash of quicknet:
 52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971
-it used to be that of the fastnet network, but that one is being deprecated:
-dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493
 
 You can also use the drand test network:
 https://pl-us.testnet.drand.sh/

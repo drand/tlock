@@ -31,13 +31,12 @@ const (
 	testnetUnchainedOnG2 = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
 	testnetQuicknetT     = "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
 	mainnetHost          = "http://api.drand.sh/"
-	mainnetFastnet       = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 	mainnetQuicknet      = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
 )
 
 func TestEarlyDecryptionWithDuration(t *testing.T) {
 	for host, hashes := range map[string][]string{testnetHost: {testnetUnchainedOnG2, testnetQuicknetT},
-		mainnetHost: {mainnetFastnet, mainnetQuicknet}} {
+		mainnetHost: {mainnetQuicknet}} {
 		for _, hash := range hashes {
 			network, err := http.NewNetwork(host, hash)
 			require.NoError(t, err)
@@ -293,17 +292,17 @@ func TestCannotEncryptWithPointAtInfinity(t *testing.T) {
 
 func TestDecryptText(t *testing.T) {
 	cipher := `-----BEGIN AGE ENCRYPTED FILE-----
-YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDIgZGJkNTA2ZDZlZjc2ZTVm
-Mzg2ZjQxYzY1MWRjYjgwOGM1YmNiZDc1NDcxY2M0ZWFmYTNmNGRmN2FkNGU0YzQ5
-MwpzRXAvVVpBQXlDSjE1QUxDaUFnQ1E2cEd1elJXS0kzMkpsQnBxUFAzcHVvdWRT
-a2w0OXJ0NC9rMmd0UHlVMTRxCkN3MERjVUJVUlloT2UrRjZsSE9lTFgwMkZNMjk3
-UGpwNlBZL09WY3NoblhqMTVMbU9FeXV1MjlDcmJGQXU3SmgKcWxlbjFtaXBONWUz
-eFpVQysxQWtjS1Z3SU9uRjJWaW8veUpkNEUyVHhQWQotLS0gN21xSHhranNqMEND
-UG9qN2haU0FWdEpFK0pUZzUwWmVsVS9YRWdOaDRadwpeDBRfXZtLOC49GlI+Kozr
-z6hgtLUPYvAimgekc+CeyJ8fb/0MVrpq/Ewnx1MpKig8nQ==
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDEyMDQwODgzIDUyZGI5YmE3
+MGUwY2MwZjZlYWY3ODAzZGQwNzQ0N2ExZjU0Nzc3MzVmZDNmNjYxNzkyYmE5NDYw
+MGM4NGU5NzEKa1JjK01NSEUwS005b1V0SmNLTWZGb1JFVzBXN1JQbTNtdzZpVUJ1
+cGNXVkZkZDJQb1h6U0JrK25TM01BNnBKNwpHZDl3REhmVU5hTldXTWw2cGVia2Jh
+OUVNZGJDWnBuQVNtOWFIb3hqUitwaGFVT2xoS1ppZGl5ZHBLSStPS2N0CmxvT2ZP
+SW9KaGtndTVTRnJUOGVVQTJUOGk3aTBwQlBzTDlTWUJUZEJQb28KLS0tIEl6Q1Js
+WSt1RXp0d21CbEg0cTFVZGNJaW9pS2l0M0c0bHVxNlNjT2w3UUUKDI4cDlPHPgjy
+UnBmtsw6U2LlKh8iDf0E1PfwDenmKFfQaAGm0WLxdlzP8Q==
 -----END AGE ENCRYPTED FILE-----`
 	t.Run("With valid network", func(tt *testing.T) {
-		network, err := http.NewNetwork(mainnetHost, mainnetFastnet)
+		network, err := http.NewNetwork(mainnetHost, mainnetQuicknet)
 		require.NoError(tt, err)
 
 		testReader := strings.NewReader(cipher)
@@ -312,7 +311,7 @@ z6hgtLUPYvAimgekc+CeyJ8fb/0MVrpq/Ewnx1MpKig8nQ==
 		err = tlock.New(network).Decrypt(&plainData, testReader)
 		require.NoError(tt, err)
 
-		require.Equal(tt, "Hello drand World\n", plainData.String())
+		require.Equal(tt, "hello world", plainData.String())
 	})
 
 	t.Run("With invalid network", func(tt *testing.T) {
@@ -341,17 +340,18 @@ z6hgtLUPYvAimgekc+CeyJ8fb/0MVrpq/Ewnx1MpKig8nQ==
 func TestInteropWithJS(t *testing.T) {
 	t.Run("on Mainnet with G1 sigs", func(t *testing.T) {
 		cipher := `-----BEGIN AGE ENCRYPTED FILE-----
-YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDEgZGJkNTA2ZDZlZjc2ZTVm
-Mzg2ZjQxYzY1MWRjYjgwOGM1YmNiZDc1NDcxY2M0ZWFmYTNmNGRmN2FkNGU0YzQ5
-MwpvMTZVWGpocTM2Y0U0aExDY3B2SThMNEJhNzNLbXZ1T3dUR0x4L2QvMWdISTdk
-cDBWbE9IeUhXYUxaalNEUUlSCkIxZHBJeG82RVVLekFMU1FtQ1VFbjhwZHNHMHRy
-anlsZjJPTFZHelNYdFhwQXhPSEljbnY2SVp1ck1sZ3RybDIKTk1KOWhsSWZoOFEz
-Z3MrWGNCc0F2NGY2L2k5dVJlZlFJeUhtU1AvMDZxdwotLS0gbEtQSXMzeVNZMmUw
-RndkR1oyL0xFTkZILzl4Y3NBOU5EWXRGcDBObmZidwpiI9yHPl4yVTbeImtNOklv
-Ds7/d2pdgkRooMJ58zoZd+AFXtAn2+7yGehvtkrWoSxgA8cf1aLuHFTAHho=
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDEyMDQxMTI1IDUyZGI5YmE3
+MGUwY2MwZjZlYWY3ODAzZGQwNzQ0N2ExZjU0Nzc3MzVmZDNmNjYxNzkyYmE5NDYw
+MGM4NGU5NzEKbDNtWFdseFRIS0YxQi9HZGYyMzJ0cmkveDFWZk5zVDMwS002eExV
+NXUwbFFqQVdNSFJmVHJYbnFJOWpHWWM4ZApETmVodVhaUm8zay9HVzVMVDNaN1M1
+d3JVN0lvQVNQUy9xY3JjODNIWEplY25wTXVJS1ZTM3Fyc0NvZzJiZW1OCjVJQmRD
+VDU4UUZGeVJ5QzRlRUFZU092NWl0b3E2UWw1RDh6WEtVdmdTTFkKLS0tIEk5c0th
+Mi9yeEF2ZDFlL1paTFlIV2VZYkVZVjlreDFidE1wWm1rMU51QkUKxCgEsEjSEixh
+4nEBtpolrubLO6WwhfWuh5ZFewjuXbSyrJGreivurDm+7y5stuDO6xPVRpcU+eSQ
+RLrz
 -----END AGE ENCRYPTED FILE-----`
 		expected := "hello world and other things"
-		network, err := http.NewNetwork(mainnetHost, mainnetFastnet)
+		network, err := http.NewNetwork(mainnetHost, mainnetQuicknet)
 		require.NoError(t, err)
 
 		testReader := strings.NewReader(cipher)

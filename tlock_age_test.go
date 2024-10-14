@@ -20,7 +20,7 @@ func Test_WrapUnwrap(t *testing.T) {
 		t.Fatalf("network error %s", err)
 	}
 
-	recipient := tleRecipient{
+	recipient := Recipient{
 		roundNumber: network.RoundNumber(time.Now()),
 		network:     network,
 	}
@@ -36,7 +36,7 @@ func Test_WrapUnwrap(t *testing.T) {
 		t.Fatalf("wrap error %s", err)
 	}
 
-	identity := tleIdentity{
+	identity := Identity{
 		network: network,
 	}
 

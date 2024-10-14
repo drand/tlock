@@ -1,3 +1,6 @@
+# binaries
+cmd/age-plugin-tlock/age-plugin-tlock
+cmd/tle/tle
 # Mac files
 .DS*
 
