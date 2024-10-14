@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"strconv"
@@ -117,17 +118,29 @@ func createRecipient(chainhash []byte, publicKey []byte, genesis int64, period i
 	b.Write(append([]byte{byte(len(chainhash))}, chainhash...))
 	b.Write(append([]byte{byte(len(publicKey))}, publicKey...))
 	// varint encoding of genesis
-	b.Write(intEncode(int64(genesis)))
-	b.Write(intEncode(int64(period)))
+	b.Write(intEncode(uint64(genesis)))
+	b.Write(intEncode(uint64(period)))
 	if round > 0 {
-		b.Write(intEncode(int64(round)))
+		b.Write(intEncode(uint64(round)))
 	}
 	return b.Bytes()
 }
 
-func intEncode(val int64) []byte {
+func intEncode(u uint64) []byte {
 	buf := make([]byte, binary.MaxVarintLen64)
-	n := binary.PutVarint(buf, val)
+	n := binary.PutUvarint(buf, u)
+	//Encoding an unsigned integer v (of any type excepting u8) works as follows:
+	//
+	//If u < 251, encode it as a single byte with that value.
+	//	If 251 <= u < 2**16, encode it as a literal byte 251, followed by a u16 with value u.
+	//	If 2**16 <= u < 2**32, encode it as a literal byte 252, followed by a u32 with value u.
+	//	If 2**32 <= u < 2**64, encode it as a literal byte 253, followed by a u64 with value u.
+	//	If 2**64 <= u < 2**128, encode it as a literal byte 254, followed by a u128 with value u.
+	// 	u is encoded as little endian, starting with its LSB
+	if val < 8 {
+
+	} else if {
+	}
 
 	fmt.Fprintln(os.Stderr, "Encoded int", val, "into", n, "bytes:", buf[:n])
 
@@ -315,69 +328,58 @@ func (p interactive) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 }
 
 // NewRecipient parses the recipient from the age1tlock1 recipient strings.
-// The beck32 data contains: <HASH><PUBLIC_KEY><GENESIS><PERIOD><ROUND>
+// age1tlock1<HASH><PUBLIC_KEY><GENESIS><PERIOD><ROUND(optional)>
 func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 	return func(data []byte) (age.Recipient, error) {
-		// RAW mode
-		if data[0] == 0 {
-			chainhash := data[:32]
-			var pk kyber.Point
-			var scheme *crypto.Scheme
-			offset := 0
-			if len(data) >= 1+32+1+1+1+1 && len(data) <= 1+32+1+48+8+8+8 {
-				pk = new(bls.KyberG1)
-				offset = 48
-				scheme = crypto.NewPedersenBLSUnchained()
-			} else if len(data) >= 1+32+1+96+1+1+1 && len(data) <= 1+32+1+96+8+8+8 {
-				pk = new(bls.KyberG2)
-				offset = 96
-				scheme = crypto.NewPedersenBLSUnchainedG1()
-			} else {
-				return nil, fmt.Errorf("invalid len %d for tlock recipient", len(data))
-			}
-			if err := pk.UnmarshalBinary(data[1+32+1 : 1+32+1+offset]); err != nil {
-				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
-			}
-
-			// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
-			r := bytes.NewReader(data[1+32+1+offset:])
-			genesis, err := binary.ReadVarint(r)
-			if err != nil {
-				return nil, fmt.Errorf("unable to read genesis: %w", err)
-			}
-			period, err := binary.ReadVarint(r)
-			if err != nil {
-				return nil, fmt.Errorf("unable to read period: %w", err)
-			}
-			round, err := binary.ReadVarint(r)
-			if err != nil {
-				return nil, fmt.Errorf("unable to read round: %w", err)
-			}
-
-			// TODO: handle above VarInt properly, optionally prompt user for round value?
-
-			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
-
-			return tlock.NewRecipient(network, uint64(round)), err
+		slog.Debug("parsing recipient", "data", data)
+		if data[0] != 32 {
+			return nil, errors.New("invalid recipient type, invalid chainhash length")
 		}
-		if data[0] == 1 {
-			network, err := ParseNetwork(string(data[1:]))
-			if err != nil {
-				log.Fatal("invalid URL provided in keygen")
+		chainhash := data[1:33]
+		var pk kyber.Point
+		var scheme *crypto.Scheme
+		offset := 0
+		if len(data) >= 1+32+1+1+1+1 && len(data) <= 1+32+1+48+8+8+8 {
+			pk = new(bls.KyberG1)
+			offset = 48
+			if data[1+32] < 48 {
+				offset = int(data[1+32])
 			}
-
-			fmt.Println("please provide the round number you want to encrypt towards")
-			var round uint64
-			fmt.Scanf("%d", &round)
-
-			return tlock.NewRecipient(network, round), err
-		}
-
-		if data[0] == 2 && p != nil {
+			scheme = crypto.NewPedersenBLSUnchained()
+		} else if len(data) >= 1+32+1+96+1+1 && len(data) <= 1+32+1+96+8+8+8 {
+			pk = new(bls.KyberG2)
+			offset = 96
+			if data[1+32] < 96 {
+				offset = int(data[1+32])
+			}
+			scheme = crypto.NewPedersenBLSUnchainedG1()
+		} else {
+			slog.Error("invalid length for tlock recipient", "length", len(data))
+			slog.Debug("using interactive mode", "data", data)
 			return interactive{p: p}, nil
 		}
+		if err := pk.UnmarshalBinary(data[1+32+1 : 1+32+1+offset]); err != nil {
+			return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+		}
 
-		return nil, fmt.Errorf("unknown identity type: %v", data[0])
+		// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
+		r := bytes.NewReader(data[1+32+1+offset:])
+		genesis, err := binary.ReadVarint(r)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read genesis: %w", err)
+		}
+		period, err := binary.ReadVarint(r)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read period: %w", err)
+		}
+		round, err := binary.ReadVarint(r)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read round: %w", err)
+		}
+
+		network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
+
+		return tlock.NewRecipient(network, uint64(round)), err
 	}
 }
 
