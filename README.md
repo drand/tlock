@@ -12,7 +12,7 @@ Working endpoints to access it are, on mainnet:
 - https://drand.cloudflare.com/ (load-balanced across regions)
 
 On mainnet, the only chainhash supporting timelock encryption, with a 3s frequency and signatures on the G1 group is:
-`dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493`
+`52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971`
 
 This is a production-ready network with high-availability guarantees. It is considered fully secure by the drand team
 and ran by the same League of Entropy that has been running drand in production since 2019.
@@ -99,8 +99,6 @@ NETWORK defaults to the drand mainnet endpoint https://api.drand.sh/.
 
 CHAIN defaults to the chainhash of quicknet:
 52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971
-it used to be that of the fastnet network, but that one is being deprecated:
-dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493
 
 You can also use the drand test network:
 https://pl-us.testnet.drand.sh/
@@ -128,13 +126,13 @@ $ tle -n="https://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b
 
 If a round (`--round/-R`) number is known, it can be used instead of the duration. The data can be decrypted only when that round becomes available in the network.
 
-Example using the fastnet mainnet network and a given round:
+Example using an EU relay, the quicknet chainhash and a given round 123456:
 ```bash
-$ tle -n="https://api.drand.sh/" -c="dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493" -r=123456 -o=encrypted_data data.txt
+$ tle -n="https://api2.drand.sh/" -c="52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971" -r=123456 -o=encrypted_data data.txt
 ```
 
 It is also possible to encrypt the data to a PEM encoded format using the armor (`--armor/-a`) flag,
-and to rely on the default network and chain hash (which is the `fastnet` one on `api.drand.sh`):
+and to rely on the default network and chain hash (which is the `quicknet` one on `api.drand.sh`):
 ```bash
 $ tle -a -D 20s -o=encrypted_data.PEM data.txt
 ```
@@ -142,8 +140,9 @@ $ tle -a -D 20s -o=encrypted_data.PEM data.txt
 #### Timelock Decryption
 
 For decryption, it's only necessary to specify the network if you're not using the default one.
+Since v1.3.0, some auto-detection of chainhash and network is done upon decryption.
 
-Using the default ("fastnet" network on mainnet) and printing on stdout:
+Using the default values, and printing on stdout:
 ```bash
 $ tle -d encrypted_data
 ```
@@ -161,9 +160,9 @@ If decoding an armored source you don't need to specify `-a` again.
 
 ### Library Usage
 
-These example show how to use the API to time lock encrypt and decrypt data.
+These example show how to use the API to timelock encrypt and decrypt data.
 
-#### Time Lock Encryption
+#### Timelock Encryption
 
 ```go
 // Open an io.Reader to the data to be encrypted.
@@ -174,9 +173,9 @@ if err != nil {
 }
 defer in.Close()
 
-// Construct a network that can talk to a drand network. Example using the mainnet fastnet network.
+// Construct a network that can talk to a drand network. Example using the mainnet quicknet network.
 // host:      "https://api.drand.sh/"
-// chainHash: "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
+// chainHash: "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
 network,err := http.NewNetwork(host, chainHash)
 if err != nil {
 	log.Fatalf("new network: %s", err)
@@ -199,7 +198,7 @@ if err := tlock.New(network).Encrypt(&cipherData, in, roundNumber); err != nil {
 }
 ```
 
-#### Time Lock Decryption
+#### Timelock Decryption
 
 ```go
 // Open an io.Reader to the data to be decrypted.
@@ -212,7 +211,7 @@ defer in.Close()
 
 // Construct a network that can talk to a drand network.
 // host:      "https://api.drand.sh/"
-// chainHash: "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
+// chainHash: "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
 network,err := http.NewNetwork(host, chainHash)
 if err != nil {
 	log.Fatalf("new network: %s", err)
