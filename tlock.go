@@ -17,6 +17,7 @@ import (
 	"github.com/drand/kyber"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/encrypt/ibe"
+	bn "github.com/drand/kyber/pairing/bn254"
 	"gopkg.in/yaml.v3"
 )
 
@@ -136,7 +137,7 @@ func (t Tlock) Metadata(dst io.Writer) (err error) {
 // TimeLock encrypts the specified data for the given round number. The data
 // can't be decrypted until the specified round is reached by the network in use.
 func TimeLock(scheme crypto.Scheme, publicKey kyber.Point, roundNumber uint64, data []byte) (*ibe.Ciphertext, error) {
-	if publicKey.Equal(publicKey.Null()) {
+	if publicKey.Equal(publicKey.Clone().Null()) {
 		return nil, ErrInvalidPublicKey
 	}
 
@@ -154,6 +155,11 @@ func TimeLock(scheme crypto.Scheme, publicKey kyber.Point, roundNumber uint64, d
 		cipherText, err = ibe.EncryptCCAonG1(bls.NewBLS12381Suite(), publicKey, id, data)
 	case crypto.SigsOnG1ID:
 		cipherText, err = ibe.EncryptCCAonG2(bls.NewBLS12381Suite(), publicKey, id, data)
+	case crypto.BN254UnchainedOnG1SchemeID:
+		suite := bn.NewSuiteBn254()
+		suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
+		suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
+		cipherText, err = ibe.EncryptCCAonG2(suite, publicKey, id, data)
 	default:
 		return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
 	}
@@ -194,6 +200,15 @@ func TimeUnlock(scheme crypto.Scheme, publicKey kyber.Point, beacon chain.Beacon
 			return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
 		}
 		data, err = ibe.DecryptCCAonG2(bls.NewBLS12381Suite(), &signature, ciphertext)
+	case crypto.BN254UnchainedOnG1SchemeID:
+		suite := bn.NewSuiteBn254()
+		suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
+		suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
+		signature := suite.G1().Point()
+		if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+			return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+		}
+		data, err = ibe.DecryptCCAonG2(suite, signature, ciphertext)
 	default:
 		return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
 	}
@@ -248,6 +263,9 @@ func BytesToCiphertext(scheme crypto.Scheme, b []byte) (*ibe.Ciphertext, error) 
 
 	cipherW := make([]byte, cipherVLen)
 	copy(cipherW, b[kyberPointLen+cipherVLen:])
+	if len(b[kyberPointLen+cipherVLen:]) != cipherVLen {
+		return nil, fmt.Errorf("invalid ciphertext length: %d", len(b[kyberPointLen+cipherVLen:]))
+	}
 
 	u := scheme.KeyGroup.Point()
 	if err := u.UnmarshalBinary(kyberPoint); err != nil {

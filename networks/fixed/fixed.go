@@ -2,6 +2,7 @@
 package fixed
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -31,6 +32,7 @@ func NewNetwork(chainHash string, publicKey kyber.Point, sch *crypto.Scheme, per
 	case crypto.ShortSigSchemeID:
 	case crypto.SigsOnG1ID:
 	case crypto.UnchainedSchemeID:
+	case crypto.BN254UnchainedOnG1SchemeID:
 	default:
 		return nil, ErrNotUnchained
 	}
@@ -43,6 +45,36 @@ func NewNetwork(chainHash string, publicKey kyber.Point, sch *crypto.Scheme, per
 		genesis:   genesis,
 		fixedSig:  sig,
 	}, nil
+}
+
+type infoV2 struct {
+	PublicKey   chain.HexBytes `json:"public_key"`
+	ID          string         `json:"beacon_id,beaconID"`
+	Period      int64          `json:"period"`
+	Scheme      string         `json:"scheme"`
+	GenesisTime int64          `json:"genesis_time"`
+	ChainHash   string         `json:"chain_hash,hash"`
+}
+
+func FromInfo(jsonInfo string) (*Network, error) {
+	info := new(infoV2)
+	err := json.Unmarshal([]byte(jsonInfo), info)
+	if err != nil {
+		return nil, err
+	}
+	sch, err := crypto.SchemeFromName(info.Scheme)
+	if err != nil {
+		return nil, err
+	}
+	public := sch.KeyGroup.Point()
+	if err := public.UnmarshalBinary(info.PublicKey); err != nil {
+		return nil, err
+	}
+	return NewNetwork(info.ChainHash, public, sch, time.Duration(info.Period)*time.Second, info.GenesisTime, nil)
+}
+
+func (n *Network) SetSignature(sig []byte) {
+	n.fixedSig = sig
 }
 
 // ChainHash returns the chain hash for this network.

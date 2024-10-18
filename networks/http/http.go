@@ -69,12 +69,16 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		return nil, fmt.Errorf("getting client information: %w", err)
 	}
 
+	if info.HashString() != chainHash {
+		return nil, fmt.Errorf("chain hash mistmatch: (requested) %s!=%s (received)", chainHash, info.HashString())
+	}
+
 	sch, err := crypto.SchemeFromName(info.Scheme)
 	if err != nil {
 		return nil, ErrNotUnchained
 	}
 
-	if !(sch.Name == crypto.UnchainedSchemeID || sch.Name == crypto.ShortSigSchemeID || sch.Name == crypto.SigsOnG1ID) {
+	if sch.Name == crypto.DefaultSchemeID {
 		return nil, ErrNotUnchained
 	}
 
