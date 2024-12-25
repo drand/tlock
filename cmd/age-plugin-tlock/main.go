@@ -68,7 +68,7 @@ func main() {
 		case l == 3:
 			host, err := url.Parse(os.Args[l-1])
 			if err != nil {
-				log.Fatal("invalid URL provided in keygen")
+				log.Fatal("invalid URL provided in keygen", err)
 			}
 			data = append([]byte{0x01}, []byte(host.String())...)
 		case l == 4:
