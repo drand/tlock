@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math"
 	"net/url"
 	"os"
 	"strconv"
@@ -112,7 +113,7 @@ func Usage() {
 
 // createRecipient creates data for recipients of the form:
 // age1tlock1<HASH><PUBLIC_KEY><GENESIS><PERIOD><ROUND(optional)>
-func createRecipient(chainhash []byte, publicKey []byte, genesis int64, period int, round int64) []byte {
+func createRecipient(chainhash []byte, publicKey []byte, genesis int64, period uint, round int64) []byte {
 	b := bytes.Buffer{}
 	// we follow the tlock-ts encoding that uses https://github.com/bincode-org/bincode/blob/trunk/docs/spec.md
 	b.Write(append([]byte{byte(len(chainhash))}, chainhash...))
@@ -126,25 +127,26 @@ func createRecipient(chainhash []byte, publicKey []byte, genesis int64, period i
 	return b.Bytes()
 }
 
+// intEncode re-implements the bincode format for uint64 values
 func intEncode(u uint64) []byte {
-	buf := make([]byte, binary.MaxVarintLen64)
-	n := binary.PutUvarint(buf, u)
-	//Encoding an unsigned integer v (of any type excepting u8) works as follows:
-	//
-	//If u < 251, encode it as a single byte with that value.
-	//	If 251 <= u < 2**16, encode it as a literal byte 251, followed by a u16 with value u.
-	//	If 2**16 <= u < 2**32, encode it as a literal byte 252, followed by a u32 with value u.
-	//	If 2**32 <= u < 2**64, encode it as a literal byte 253, followed by a u64 with value u.
-	//	If 2**64 <= u < 2**128, encode it as a literal byte 254, followed by a u128 with value u.
-	// 	u is encoded as little endian, starting with its LSB
-	if val < 8 {
-
-	} else if {
+	buf := make([]byte, 1, binary.MaxVarintLen64)
+	switch {
+	case u < 251:
+		buf[0] = byte(u)
+	case u < math.MaxInt16:
+		buf[0] = byte(251)
+		buf = binary.LittleEndian.AppendUint16(buf, uint16(u))
+	case u < math.MaxInt32:
+		buf[0] = byte(252)
+		buf = binary.LittleEndian.AppendUint32(buf, uint32(u))
+	case u < math.MaxInt64:
+		buf[0] = byte(253)
+		buf = binary.LittleEndian.AppendUint64(buf, u)
+	default:
+		buf[0] = byte(254)
 	}
 
-	fmt.Fprintln(os.Stderr, "Encoded int", val, "into", n, "bytes:", buf[:n])
-
-	return buf[:n]
+	return buf
 }
 
 func decodePublicKey(pks string) (kyber.Point, *crypto.Scheme, error) {
@@ -331,21 +333,45 @@ func (p interactive) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 // age1tlock1<HASH><PUBLIC_KEY><GENESIS><PERIOD><ROUND(optional)>
 func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 	return func(data []byte) (age.Recipient, error) {
-		slog.Debug("parsing recipient", "data", data)
-		if data[0] != 32 {
-			return nil, errors.New("invalid recipient type, invalid chainhash length")
-		}
-		chainhash := data[1:33]
-		var pk kyber.Point
-		var scheme *crypto.Scheme
-		offset := 0
-		if len(data) >= 1+32+1+1+1+1 && len(data) <= 1+32+1+48+8+8+8 {
-			pk = new(bls.KyberG1)
-			offset = 48
-			if data[1+32] < 48 {
-				offset = int(data[1+32])
+		// RAW mode
+		var chainhash []byte
+		if data[0] == 0 {
+			chainhash = data[:32]
+			var pk kyber.Point
+			var scheme *crypto.Scheme
+			offset := 0
+			if len(data) >= 1+32+1+1+1+1 && len(data) <= 1+32+1+48+8+8+8 {
+				pk = new(bls.KyberG1)
+				offset = 48
+				scheme = crypto.NewPedersenBLSUnchained()
+			} else if len(data) >= 1+32+1+96+1+1+1 && len(data) <= 1+32+1+96+8+8+8 {
+				pk = new(bls.KyberG2)
+				offset = 96
+				scheme = crypto.NewPedersenBLSUnchainedG1()
+			} else {
+				return nil, fmt.Errorf("invalid len %d for tlock recipient", len(data))
+			}
+			if err := pk.UnmarshalBinary(data[1+32+1 : 1+32+1+offset]); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+			}
+
+			// Careful, the following actually isn'at interoperable with the rust tlock plugin since it's using different encoding it seems.
+			r := bytes.NewReader(data[1+32+1+offset:])
+			genesis, err = binary.ReadVarint(r)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read genesis: %w", err)
+			}
+			period, err = binary.ReadVarint(r)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read period: %w", err)
 			}
 			scheme = crypto.NewPedersenBLSUnchained()
+			// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
+			r := bytes.NewReader(data[1+32+1+offset:])
+
+			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
+
+			return tlock.NewRecipient(network, uint64(round)), err
 		} else if len(data) >= 1+32+1+96+1+1 && len(data) <= 1+32+1+96+8+8+8 {
 			pk = new(bls.KyberG2)
 			offset = 96
@@ -353,33 +379,18 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 				offset = int(data[1+32])
 			}
 			scheme = crypto.NewPedersenBLSUnchainedG1()
+
+			// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
+			r := bytes.NewReader(data[1+32+1+offset:])
+
+			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
+
+			return tlock.NewRecipient(network, uint64(round)), err
 		} else {
 			slog.Error("invalid length for tlock recipient", "length", len(data))
 			slog.Debug("using interactive mode", "data", data)
 			return interactive{p: p}, nil
 		}
-		if err := pk.UnmarshalBinary(data[1+32+1 : 1+32+1+offset]); err != nil {
-			return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
-		}
-
-		// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
-		r := bytes.NewReader(data[1+32+1+offset:])
-		genesis, err := binary.ReadVarint(r)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read genesis: %w", err)
-		}
-		period, err := binary.ReadVarint(r)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read period: %w", err)
-		}
-		round, err := binary.ReadVarint(r)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read round: %w", err)
-		}
-
-		network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
-
-		return tlock.NewRecipient(network, uint64(round)), err
 	}
 }
 

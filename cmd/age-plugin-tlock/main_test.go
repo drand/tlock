@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
@@ -133,7 +134,9 @@ func Test_intEncode(t *testing.T) {
 		input uint64
 		want  []byte
 	}{
-		{1692803367, []byte{252, 39, 33, 230, 100}},
+		{1677685200, []byte{252, 208, 113, 255, 99}},
+		{5, []byte{5}},
+		{255, []byte{251, 255}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("test-%d", tt.input), func(t *testing.T) {
@@ -141,5 +144,6 @@ func Test_intEncode(t *testing.T) {
 				t.Errorf("intEncode() = %v, want %v", got, tt.want)
 			}
 		})
+		t.Log(binary.LittleEndian.AppendUint64([]byte{}, uint64(tt.input)))
 	}
 }

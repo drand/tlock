@@ -22,7 +22,7 @@ import (
 )
 
 // timeout represents the maximum amount of time to wait for network operations.
-const timeout = 5 * time.Second
+const timeout = 15 * time.Second
 
 // ErrNotUnchained represents an error when the informed chain belongs to a
 // chained network.
