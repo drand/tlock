@@ -357,17 +357,15 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 
 			// Careful, the following actually isn'at interoperable with the rust tlock plugin since it's using different encoding it seems.
 			r := bytes.NewReader(data[1+32+1+offset:])
-			genesis, err = binary.ReadVarint(r)
+			genesis, err := binary.ReadVarint(r)
 			if err != nil {
 				return nil, fmt.Errorf("unable to read genesis: %w", err)
 			}
-			period, err = binary.ReadVarint(r)
+			period, err := binary.ReadVarint(r)
 			if err != nil {
 				return nil, fmt.Errorf("unable to read period: %w", err)
 			}
 			scheme = crypto.NewPedersenBLSUnchained()
-			// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
-			r := bytes.NewReader(data[1+32+1+offset:])
 
 			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
 
