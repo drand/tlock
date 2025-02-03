@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"math"
@@ -46,7 +47,7 @@ func main() {
 
 	p, err := page.New("tlock")
 	if err != nil {
-		fmt.Println("error creating plugin", err)
+		slog.Error("error creating plugin", "err", err)
 		return
 	}
 
@@ -91,9 +92,9 @@ func main() {
 		}
 
 		pub := page.EncodeRecipient(p.Name(), data)
-		fmt.Println("recipient:", pub)
+		fmt.Println("recipient",pub)
 		priv := page.EncodeIdentity(p.Name(), data)
-		fmt.Println("identity:", priv)
+		fmt.Println("identity", priv)
 
 		return
 	}
@@ -143,10 +144,54 @@ func intEncode(u uint64) []byte {
 		buf[0] = byte(253)
 		buf = binary.LittleEndian.AppendUint64(buf, u)
 	default:
+		// 254 is meant for u128, but we don't support 128 bit integers here.
 		buf[0] = byte(254)
 	}
 
 	return buf
+}
+
+func intDecode(r io.Reader) (uint64, int) {
+	buf := make([]byte, 1)
+	i, err := r.Read(buf)
+	if err != nil || i != 1 {
+		slog.Error("intDecode error", "error", err, "read", i)
+		return 0, -1
+	}
+	u := buf[0]
+	switch {
+	case int(u) < 251:
+		return uint64(u), 1
+	case u == byte(251):
+		data := make([]byte, 2)
+		i, err = r.Read(data)
+		if err != nil || i <= 0 {
+			slog.Error("read data error", "error", err, "read", i)
+			return 0, -1
+		}
+		return uint64(binary.LittleEndian.Uint16(data)), 1 + 2
+	case u == byte(252):
+		data := make([]byte, 4)
+		i, err = r.Read(data)
+		if err != nil || i <= 0 {
+			slog.Error("read data error", "error", err, "read", i)
+			return 0, -1
+		}
+		return uint64(binary.LittleEndian.Uint32(data)), 1 + 4
+	case u == byte(253):
+		data := make([]byte, 8)
+		i, err = r.Read(data)
+		if err != nil || i <= 0 {
+			slog.Error("read data error", "error", err, "read", i)
+			return 0, -1
+		}
+		return uint64(binary.LittleEndian.Uint64(data)), 1 + 8
+	case u == byte(254):
+		slog.Error("u128 are unsupported")
+		return 0, -1
+
+	}
+	return 0, -1
 }
 
 func decodePublicKey(pks string) (kyber.Point, *crypto.Scheme, error) {
@@ -157,7 +202,7 @@ func decodePublicKey(pks string) (kyber.Point, *crypto.Scheme, error) {
 	}
 	switch l := len(data); l {
 	case suite.G1().PointLen():
-		fmt.Fprintln(os.Stderr, "detected public key on G1")
+		slog.Debug("detected public key on G1")
 		var p bls.KyberG1
 		if err := p.UnmarshalBinary(data); err != nil {
 			return nil, nil, fmt.Errorf("unmarshal kyber G1: %w", err)
@@ -165,7 +210,7 @@ func decodePublicKey(pks string) (kyber.Point, *crypto.Scheme, error) {
 		sch := crypto.NewPedersenBLSUnchained()
 		return &p, sch, nil
 	case suite.G2().PointLen():
-		fmt.Fprintln(os.Stderr, "detected public key on G2")
+		slog.Debug("detected public key on G2")
 		var p bls.KyberG2
 		if err := p.UnmarshalBinary(data); err != nil {
 			return nil, nil, fmt.Errorf("unmarshal kyber G2: %w", err)
@@ -186,6 +231,7 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 		var err error
 		var network tlock.Network
 		if data[0] == 0 {
+			slog.Info("parsed data[0] == 0")
 			sig = make([]byte, len(data[1:])/2)
 			n, err := hex.Decode(sig, data[1:])
 			if err != nil {
@@ -199,13 +245,15 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 				return nil, err
 			}
 		} else if data[0] == 1 {
+			slog.Info("parsed data[0] == 1")
 			network, err = ParseNetwork(string(data[2:]))
 		} else if data[0] == 2 {
 			// interactive mode
+			slog.Info("parsed data[0] == 2")
 			return interactive{p: p}, nil
 		} else {
-			fmt.Fprintln(os.Stderr, "unknown tlock identity type:", data[0])
-			fmt.Fprintln(os.Stderr, "defaulting to interactive mode")
+			slog.Error("unknown tlock identity", "type", data[0])
+			slog.Info("defaulting to interactive mode")
 			return interactive{p: p}, nil
 		}
 		// we need to have tlock use the SwitchChainHash on the fixed network for it to work
@@ -335,21 +383,24 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 	return func(data []byte) (age.Recipient, error) {
 		// RAW mode
 		var chainhash []byte
-		if data[0] == 0 {
-			chainhash = data[:32]
-			var pk kyber.Point
-			var scheme *crypto.Scheme
-			offset := 0
-			if len(data) >= 1+32+1+1+1+1 && len(data) <= 1+32+1+48+8+8+8 {
+		var pk kyber.Point
+		var scheme *crypto.Scheme
+		offset := 0
+		if length := len(data); length >= 32+48+8+8 {
+			if data[0] != 32 {
+				return nil, fmt.Errorf("invalid len %d for chainhash", data[0])
+			}
+			chainhash = data[1:1+32]
+			if length >= 1+32+1+1+1+1 && length <= 1+32+1+48+8+8+8 {
 				pk = new(bls.KyberG1)
 				offset = 48
 				scheme = crypto.NewPedersenBLSUnchained()
-			} else if len(data) >= 1+32+1+96+1+1+1 && len(data) <= 1+32+1+96+8+8+8 {
+			} else if length >= 1+32+1+96+1+1+1 && length <= 1+32+1+96+8+8+8 {
 				pk = new(bls.KyberG2)
 				offset = 96
 				scheme = crypto.NewPedersenBLSUnchainedG1()
 			} else {
-				return nil, fmt.Errorf("invalid len %d for tlock recipient", len(data))
+				return nil, fmt.Errorf("invalid len %d for tlock recipient", length)
 			}
 			if err := pk.UnmarshalBinary(data[1+32+1 : 1+32+1+offset]); err != nil {
 				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
@@ -366,26 +417,17 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 				return nil, fmt.Errorf("unable to read period: %w", err)
 			}
 			scheme = crypto.NewPedersenBLSUnchained()
-
-			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
-
-			return tlock.NewRecipient(network, uint64(round)), err
-		} else if len(data) >= 1+32+1+96+1+1 && len(data) <= 1+32+1+96+8+8+8 {
-			pk = new(bls.KyberG2)
-			offset = 96
-			if data[1+32] < 96 {
-				offset = int(data[1+32])
+			round, i := intDecode(r)
+			if i <= 0 {
+				slog.Error("invalid round in recipient, aborting")
+				return nil, fmt.Errorf("wrong round")
 			}
-			scheme = crypto.NewPedersenBLSUnchainedG1()
-
-			// Careful, the following actually isn't interoperable with the rust tlock plugin since it's using different encoding it seems.
-			r := bytes.NewReader(data[1+32+1+offset:])
 
 			network, err := fixed.NewNetwork(hex.EncodeToString(chainhash), pk, scheme, time.Duration(period)*time.Second, genesis, nil)
 
 			return tlock.NewRecipient(network, uint64(round)), err
 		} else {
-			slog.Error("invalid length for tlock recipient", "length", len(data))
+			slog.Error("invalid length for tlock recipient", "length", length)
 			slog.Debug("using interactive mode", "data", data)
 			return interactive{p: p}, nil
 		}
