@@ -7,11 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"log/slog"
-	"math"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -40,6 +37,7 @@ var (
 func main() {
 	// we set up the flags we need
 	fs := flag.NewFlagSet("age-plugin-tlock", flag.ExitOnError)
+	fs.Usage = Usage
 	isKeyGen := fs.Bool("keygen", false, "Generate a test keypair")
 
 	//chainHash := fs.String("chainhash", DefaultChainhash, "The chainhash you want to encrypt towards. Default to the 'quicknet' one")
@@ -62,54 +60,15 @@ func main() {
 	}
 
 	if *isKeyGen {
-		data := []byte{}
-		l := len(os.Args)
-		switch {
-		case l < 3:
-			data = append([]byte{0x02}, []byte("interactive")...)
-		case l == 3:
-			host, err := url.Parse(os.Args[l-1])
-			if err != nil {
-				log.Fatal("invalid URL provided in keygen", err)
-			}
-			data = append([]byte{0x01}, []byte(host.String())...)
-		case l == 4:
-			pkb, err := hex.DecodeString(os.Args[2])
-			if err != nil {
-				log.Fatal("invalid public key hex provided in keygen")
-			}
-			chb, err := hex.DecodeString(os.Args[3])
-			if err != nil {
-				log.Fatal("invalid chainhash hex provided in keygen")
-			}
-
-			data = append([]byte{0x00}, pkb...)
-			data = append(data, chb...)
-
-			//case l == 5:
-		default:
-			Usage()
+		err := generateKeypair(p, os.Args)
+		if err != nil {
+			log.Fatal("unable to genreate keypair", err)
 		}
-
-		pub := page.EncodeRecipient(p.Name(), data)
-		fmt.Println("recipient",pub)
-		priv := page.EncodeIdentity(p.Name(), data)
-		fmt.Println("identity", priv)
 
 		return
 	}
 
 	p.Main()
-
-}
-
-func Usage() {
-	log.Fatal("Usage of keygen:\n\t " +
-		"- use age in interactive mode, getting prompted for all required data:\n\t\t\tage-plugin-tlock -keygen\n\t" +
-		"- providing a http endpoint (works for both encryption and decryption, but require networking): \n\t\t\tage-plugin-tlock -keygen http://api.drand.sh/\n\t " +
-		"- providing a public key and a chainhash (requires networking to fetch genesis and period, but is networkless afterwards): \n\t\t\tage-plugin-tlock -keygen <hexadecimal-public-key> <hexadecimal-chainhash> \n\t " +
-		//"- providing a public key, a chainhash and the signature for the round you're interested in (networkless for decryption): \n\t\t\tage-plugin-tlock -keygen" +
-		"\n")
 }
 
 // createRecipient creates data for recipients of the form:
@@ -126,72 +85,6 @@ func createRecipient(chainhash []byte, publicKey []byte, genesis int64, period u
 		b.Write(intEncode(uint64(round)))
 	}
 	return b.Bytes()
-}
-
-// intEncode re-implements the bincode format for uint64 values
-func intEncode(u uint64) []byte {
-	buf := make([]byte, 1, binary.MaxVarintLen64)
-	switch {
-	case u < 251:
-		buf[0] = byte(u)
-	case u < math.MaxInt16:
-		buf[0] = byte(251)
-		buf = binary.LittleEndian.AppendUint16(buf, uint16(u))
-	case u < math.MaxInt32:
-		buf[0] = byte(252)
-		buf = binary.LittleEndian.AppendUint32(buf, uint32(u))
-	case u < math.MaxInt64:
-		buf[0] = byte(253)
-		buf = binary.LittleEndian.AppendUint64(buf, u)
-	default:
-		// 254 is meant for u128, but we don't support 128 bit integers here.
-		buf[0] = byte(254)
-	}
-
-	return buf
-}
-
-func intDecode(r io.Reader) (uint64, int) {
-	buf := make([]byte, 1)
-	i, err := r.Read(buf)
-	if err != nil || i != 1 {
-		slog.Error("intDecode error", "error", err, "read", i)
-		return 0, -1
-	}
-	u := buf[0]
-	switch {
-	case int(u) < 251:
-		return uint64(u), 1
-	case u == byte(251):
-		data := make([]byte, 2)
-		i, err = r.Read(data)
-		if err != nil || i <= 0 {
-			slog.Error("read data error", "error", err, "read", i)
-			return 0, -1
-		}
-		return uint64(binary.LittleEndian.Uint16(data)), 1 + 2
-	case u == byte(252):
-		data := make([]byte, 4)
-		i, err = r.Read(data)
-		if err != nil || i <= 0 {
-			slog.Error("read data error", "error", err, "read", i)
-			return 0, -1
-		}
-		return uint64(binary.LittleEndian.Uint32(data)), 1 + 4
-	case u == byte(253):
-		data := make([]byte, 8)
-		i, err = r.Read(data)
-		if err != nil || i <= 0 {
-			slog.Error("read data error", "error", err, "read", i)
-			return 0, -1
-		}
-		return uint64(binary.LittleEndian.Uint64(data)), 1 + 8
-	case u == byte(254):
-		slog.Error("u128 are unsupported")
-		return 0, -1
-
-	}
-	return 0, -1
 }
 
 func decodePublicKey(pks string) (kyber.Point, *crypto.Scheme, error) {
@@ -230,7 +123,8 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 		var sig []byte
 		var err error
 		var network tlock.Network
-		if data[0] == 0 {
+		switch data[0] {
+		case 0:
 			slog.Info("parsed data[0] == 0")
 			sig = make([]byte, len(data[1:])/2)
 			n, err := hex.Decode(sig, data[1:])
@@ -244,14 +138,14 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 			if err != nil {
 				return nil, err
 			}
-		} else if data[0] == 1 {
+		case 1:
 			slog.Info("parsed data[0] == 1")
 			network, err = ParseNetwork(string(data[2:]))
-		} else if data[0] == 2 {
+		case 2:
 			// interactive mode
 			slog.Info("parsed data[0] == 2")
 			return interactive{p: p}, nil
-		} else {
+		default:
 			slog.Error("unknown tlock identity", "type", data[0])
 			slog.Info("defaulting to interactive mode")
 			return interactive{p: p}, nil
@@ -390,7 +284,7 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 			if data[0] != 32 {
 				return nil, fmt.Errorf("invalid len %d for chainhash", data[0])
 			}
-			chainhash = data[1:1+32]
+			chainhash = data[1 : 1+32]
 			if length >= 1+32+1+1+1+1 && length <= 1+32+1+48+8+8+8 {
 				pk = new(bls.KyberG1)
 				offset = 48
