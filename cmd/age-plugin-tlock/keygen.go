@@ -58,6 +58,7 @@ func generateKeypair(p *page.Plugin, args []string) error {
 		return nil
 	}
 
+	// we generate a recipient unless we only want an Identity (e.g. we got a signature instead as input)
 	if !onlyId {
 		pub := page.EncodeRecipient(p.Name(), data)
 		fmt.Println("recipient", pub)

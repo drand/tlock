@@ -22,8 +22,7 @@ On testnet:
 - https://pl-eu.testnet.drand.sh/
 - https://testnet0-api.drand.cloudflare.com/
 where we have two networks supporting timelock:
-- running with a 3 seconds frequency with signatures on G1: `f3827d772c155f95a9fda8901ddd59591a082df5ac6efe3a479ddb1f5eeb202c`
-- running with a 3 seconds frequency with signatures on G2: `7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf`
+- running with a 3 seconds frequency with signatures on G1: `cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5`
 Note these are relying on the League of Entropy **Testnet**, which should not be considered secure.
 
 You can also spin up a new drand network and run your own, but note that the security guarantees boil down to the trust you have in your network.
@@ -98,11 +97,11 @@ If the OUTPUT exists, it will be overwritten.
 NETWORK defaults to the drand mainnet endpoint https://api.drand.sh/.
 
 CHAIN defaults to the chainhash of quicknet:
-52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971
+`52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971`
 
 You can also use the drand test network:
 https://pl-us.testnet.drand.sh/
-and its unchained network on G2 with chainhash 7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf
+and its unchained network on G1 with chainhash `cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5`
 Note that if you encrypted something prior to March 2023, this was the only available network and used to be the default.
 
 DURATION, when specified, expects a number followed by one of these units:
@@ -121,7 +120,7 @@ Files can be encrypted using a duration (`--duration/-D`) in which the `encrypte
 
 Example using the testnet network and a duration of 5 seconds:
 ```bash
-$ tle -n="https://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D=5s -o=encrypted_data data.txt
+$ tle -n="https://pl-us.testnet.drand.sh/" -c="cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5" -D=5s -o=encrypted_data data.txt
 ```
 
 If a round (`--round/-R`) number is known, it can be used instead of the duration. The data can be decrypted only when that round becomes available in the network.
@@ -149,7 +148,7 @@ $ tle -d encrypted_data
 
 Using the old testnet unchained network and storing the output in a file named "decrypted_data":
 ```bash
-$ tle -d -n="https://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+$ tle -d -n="https://pl-us.testnet.drand.sh/" -c="cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
  -o=decrypted_data encrypted_data
 ```
 Note it will overwrite the `decrypted_data` file if it already exists.

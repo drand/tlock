@@ -2,8 +2,10 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -13,7 +15,8 @@ import (
 	"strings"
 	"time"
 
-	chain "github.com/drand/drand/v2/common"
+	"github.com/drand/drand/v2/common"
+	"github.com/drand/drand/v2/common/chain"
 	"github.com/drand/drand/v2/crypto"
 
 	dhttp "github.com/drand/go-clients/client/http"
@@ -39,6 +42,40 @@ type Network struct {
 	scheme    crypto.Scheme
 	period    time.Duration
 	genesis   int64
+}
+
+func NewFromJson(jsonStr string) (*Network, error) {
+	info, err := chain.InfoFromJSON(bytes.NewBufferString(jsonStr))
+	if err != nil {
+		return nil, fmt.Errorf("NFJ1: Unmarshal json error: %w on %q", err, jsonStr)
+	}
+	//var info *chain.Info
+	err = json.Unmarshal([]byte(jsonStr), info)
+	if err != nil {
+		return nil, fmt.Errorf("NFJ2: Unmarshal json error: %w on %q", err, jsonStr)
+	}
+
+	client, err := dhttp.NewWithInfo(nil, "", info, transport())
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	sch, err := crypto.SchemeFromName(info.Scheme)
+	if err != nil {
+		return nil, ErrNotUnchained
+	}
+	network := Network{
+		chainHash: info.HashString(),
+		host:      "",
+		client:    client,
+		publicKey: info.PublicKey,
+		scheme:    *sch,
+		period:    info.Period,
+		genesis:   info.GenesisTime,
+	}
+
+	return &network, nil
+
 }
 
 // NewNetwork constructs a network for use that will use the http client.
@@ -74,7 +111,12 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		return nil, ErrNotUnchained
 	}
 
-	if !(sch.Name == crypto.UnchainedSchemeID || sch.Name == crypto.ShortSigSchemeID || sch.Name == crypto.SigsOnG1ID) {
+	switch sch.Name {
+	case crypto.ShortSigSchemeID:
+	case crypto.SigsOnG1ID:
+	case crypto.UnchainedSchemeID:
+	case crypto.BN254UnchainedOnG1SchemeID:
+	default:
 		return nil, ErrNotUnchained
 	}
 
@@ -98,7 +140,7 @@ func (n *Network) ChainHash() string {
 
 // Current returns the current round for that network at the given date.
 func (n *Network) Current(date time.Time) uint64 {
-	return chain.CurrentRound(date.Unix(), n.period, n.genesis)
+	return common.CurrentRound(date.Unix(), n.period, n.genesis)
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.
@@ -132,7 +174,7 @@ func (n *Network) RoundNumber(t time.Time) uint64 {
 	return n.client.RoundAt(t)
 }
 
-// SwitchChainHash allows to start using another chainhash on the same host network
+// SwitchChainHash allows to start using another chainHash on the same host network
 func (n *Network) SwitchChainHash(new string) error {
 	test, err := NewNetwork(n.host, new)
 	if err != nil {

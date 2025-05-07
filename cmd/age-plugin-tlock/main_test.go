@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,10 +11,12 @@ import (
 
 	"filippo.io/age"
 	page "filippo.io/age/plugin"
+	"github.com/drand/drand/v2/common"
 	"github.com/drand/drand/v2/crypto"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/networks/fixed"
+	"github.com/drand/tlock/networks/http"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,6 +72,7 @@ func TestNewIdentity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Log("testing", tt.name)
 			got, err := NewIdentity(nil)(tt.data)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewIdentity() error = %v, wantErr %v", err, tt.wantErr)
@@ -131,4 +135,18 @@ func TestEncodeRecipient(t *testing.T) {
 	if got := createRecipient(chainhash, pkb, 1692803367, 3, -1); !bytes.Equal(got, wanted) {
 		t.Errorf("EncodeRecipient() = \t%v,\n\t\t\t\t\t\t\t want \t%v", got, wanted)
 	}
+}
+
+func TestRealValues(t *testing.T) {
+	infoJson := `{"public_key":"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a","period":3,"genesis_time":1692803367,"genesis_seed":"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e","chain_hash":"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971","scheme":"bls-unchained-g1-rfc9380","beacon_id":"quicknet"}`
+
+	net, err := http.NewFromJson(infoJson)
+	require.NoError(t, err)
+	require.NotNil(t, net)
+
+	sigJson := `{"round":67,"signature":"8a5e6a60b0be2adc46d31a12618cb9bb0584aa90751e7e575582f080dfdb430edf5af11411fe30a786c75c234a67c71e"}`
+	var b *common.Beacon
+	err = json.Unmarshal([]byte(sigJson), b)
+	require.NoError(t, err)
+	require.NotNil(t, b)
 }

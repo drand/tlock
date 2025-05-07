@@ -11,7 +11,7 @@ import (
 
 const (
 	testnetHost      = "http://pl-us.testnet.drand.sh/"
-	testnetChainHash = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
+	testnetChainHash = "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
 )
 
 func Test_WrapUnwrap(t *testing.T) {

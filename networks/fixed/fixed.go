@@ -2,11 +2,11 @@
 package fixed
 
 import (
-	"errors"
 	"time"
 
 	chain "github.com/drand/drand/v2/common"
 	"github.com/drand/drand/v2/crypto"
+	"github.com/drand/tlock/networks/http"
 
 	"github.com/drand/kyber"
 )
@@ -21,18 +21,15 @@ type Network struct {
 	fixedSig  []byte
 }
 
-// ErrNotUnchained represents an error when the informed chain belongs to a
-// chained network.
-var ErrNotUnchained = errors.New("not an unchained network")
-
 // NewNetwork constructs a network with static, fixed data
 func NewNetwork(chainHash string, publicKey kyber.Point, sch *crypto.Scheme, period time.Duration, genesis int64, sig []byte) (*Network, error) {
 	switch sch.Name {
 	case crypto.ShortSigSchemeID:
 	case crypto.SigsOnG1ID:
 	case crypto.UnchainedSchemeID:
+	case crypto.BN254UnchainedOnG1SchemeID:
 	default:
-		return nil, ErrNotUnchained
+		return nil, http.ErrNotUnchained
 	}
 
 	return &Network{
