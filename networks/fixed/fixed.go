@@ -49,11 +49,11 @@ func NewNetwork(chainHash string, publicKey kyber.Point, sch *crypto.Scheme, per
 
 type infoV2 struct {
 	PublicKey   chain.HexBytes `json:"public_key"`
-	ID          string         `json:"beacon_id,beaconID"`
+	ID          string         `json:"beacon_id"`
 	Period      int64          `json:"period"`
 	Scheme      string         `json:"scheme"`
 	GenesisTime int64          `json:"genesis_time"`
-	ChainHash   string         `json:"chain_hash,hash"`
+	ChainHash   string         `json:"chain_hash"`
 }
 
 func FromInfo(jsonInfo string) (*Network, error) {
