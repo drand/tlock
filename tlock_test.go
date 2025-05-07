@@ -29,16 +29,16 @@ var (
 )
 
 const (
-	testnetHost          = "http://pl-us.testnet.drand.sh/"
-	testnetUnchainedOnG2 = "7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf"
-	testnetQuicknetT     = "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
-	mainnetHost          = "http://api.drand.sh/"
-	mainnetQuicknet      = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
-	mainnetEvm           = "04f1e9062b8a81f848fded9c12306733282b2727ecced50032187751166ec8c3"
+	testnetHost           = "http://pl-us.testnet.drand.sh/"
+	testnetUnchainedOnEVM = "ddb3665060932c267aacde99049ea31f3f5a049b1741c31cf71cd5d7d11a8da2"
+	testnetQuicknetT      = "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
+	mainnetHost           = "http://api.drand.sh/"
+	mainnetQuicknet       = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
+	mainnetEvm            = "04f1e9062b8a81f848fded9c12306733282b2727ecced50032187751166ec8c3"
 )
 
 func TestEarlyDecryptionWithDuration(t *testing.T) {
-	for host, hashes := range map[string][]string{testnetHost: {testnetUnchainedOnG2, testnetQuicknetT},
+	for host, hashes := range map[string][]string{testnetHost: {testnetUnchainedOnEVM, testnetQuicknetT},
 		mainnetHost: {mainnetQuicknet}} {
 		for _, hash := range hashes {
 			network, err := http.NewNetwork(host, hash)
@@ -76,7 +76,7 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 }
 
 func TestEarlyDecryptionWithRound(t *testing.T) {
-	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
 	// =========================================================================
@@ -109,7 +109,7 @@ func TestEncryptionWithDuration(t *testing.T) {
 		t.Skip("skipping live testing in short mode")
 	}
 
-	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
 	// =========================================================================
@@ -152,7 +152,7 @@ func TestDecryptVariousChainhashes(t *testing.T) {
 
 	files, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
 	for _, file := range files {
@@ -184,7 +184,7 @@ func TestDecryptStrict(t *testing.T) {
 
 	files, err := os.ReadDir(dir)
 	require.NoError(t, err)
-	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
 	for _, file := range files {
@@ -212,7 +212,7 @@ func TestEncryptionWithRound(t *testing.T) {
 		t.Skip("skipping live testing in short mode")
 	}
 
-	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
+	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
 	// =========================================================================
@@ -399,28 +399,6 @@ RLrz
 		require.Equal(t, expected, plainData.String())
 	})
 
-	t.Run("on Testnet with G2 sigs", func(t *testing.T) {
-		cipher := `-----BEGIN AGE ENCRYPTED FILE-----
-YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDEgNzY3Mjc5N2Y1NDhmM2Y0
-NzQ4YWM0YmYzMzUyZmM2YzZiNjQ2OGM5YWQ0MGFkNDU2YTM5NzU0NWM2ZTJkZjVi
-ZgpnQUNaY1NzYm55Q0ZneEsrSVB4WFpvcGY5SEZrSG1XUFZRallneWNiZmtKTk1P
-VUVUUDM2SU1wNGR1YktNTnBHClJOZkJ5VzZYYlZJVHhtK0tUWnBEa2poVXVxazdl
-WDEwRTAxTXB4VkxDancKLS0tIENjeTd4N2VSeUh5Sk54eVFKTGRjQ3ZEQjZTRDA4
-ZEFUb0ZyZS9aSHpyWVkKKwNyX6cuEEENAjic1ew7k8G6vyxDrY5NWFbAhkKy0IrN
-jLK74v9Latit5qAD7Gu/zTIsQXMuCuUf7ma7
------END AGE ENCRYPTED FILE-----`
-		expected := "hello world and other things"
-		network, err := http.NewNetwork(testnetHost, testnetUnchainedOnG2)
-		require.NoError(t, err)
-
-		testReader := strings.NewReader(cipher)
-		var plainData bytes.Buffer
-
-		err = tlock.New(network).Decrypt(&plainData, testReader)
-		require.NoError(t, err)
-
-		require.Equal(t, expected, plainData.String())
-	})
 	t.Run("on testnet with quicknet-t", func(t *testing.T) {
 		cipher := `-----BEGIN AGE ENCRYPTED FILE-----
 YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDE2MjQ5MTAgY2M5YzM5ODQ0
