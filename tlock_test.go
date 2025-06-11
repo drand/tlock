@@ -3,6 +3,7 @@ package tlock_test
 import (
 	"bytes"
 	_ "embed" // Calls init function.
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/drand/drand/v2/crypto"
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/tlock"
+	"github.com/drand/tlock/networks/fixed"
 	"github.com/drand/tlock/networks/http"
 
 	"github.com/stretchr/testify/require"
@@ -32,6 +34,7 @@ const (
 	testnetQuicknetT      = "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
 	mainnetHost           = "http://api.drand.sh/"
 	mainnetQuicknet       = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
+	mainnetEvm            = "04f1e9062b8a81f848fded9c12306733282b2727ecced50032187751166ec8c3"
 )
 
 func TestEarlyDecryptionWithDuration(t *testing.T) {
@@ -41,7 +44,6 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 			network, err := http.NewNetwork(host, hash)
 			require.NoError(t, err)
 
-			// =========================================================================
 			// Encrypt
 
 			// Read the plaintext data to be encrypted.
@@ -59,7 +61,6 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 			err = tlock.New(network).Encrypt(&cipherData, in, roundNumber)
 			require.NoError(t, err)
 
-			// =========================================================================
 			// Decrypt
 
 			// Write the decoded information to this buffer.
@@ -76,7 +77,6 @@ func TestEarlyDecryptionWithRound(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
@@ -90,7 +90,6 @@ func TestEarlyDecryptionWithRound(t *testing.T) {
 	err = tlock.New(network).Encrypt(&cipherData, in, futureRound)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Decrypt
 
 	// Write the decoded information to this buffer.
@@ -109,7 +108,6 @@ func TestEncryptionWithDuration(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
@@ -127,7 +125,6 @@ func TestEncryptionWithDuration(t *testing.T) {
 	err = tlock.New(network).Encrypt(&cipherData, in, roundNumber)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Decrypt
 
 	time.Sleep(5 * time.Second)
@@ -212,9 +209,7 @@ func TestEncryptionWithRound(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Encrypt
-
 	// Read the plaintext data to be encrypted.
 	in, err := os.Open("testdata/data.txt")
 	require.NoError(t, err)
@@ -227,9 +222,7 @@ func TestEncryptionWithRound(t *testing.T) {
 	err = tlock.New(network).Encrypt(&cipherData, in, futureRound)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Decrypt
-
 	var plainData bytes.Buffer
 
 	// Wait for the future beacon to exist.
@@ -244,29 +237,57 @@ func TestEncryptionWithRound(t *testing.T) {
 }
 
 func TestTimeLockUnlock(t *testing.T) {
-	network, err := http.NewNetwork(testnetHost, testnetQuicknetT)
-	require.NoError(t, err)
-
-	futureRound := network.RoundNumber(time.Now())
-
-	id, err := network.Signature(futureRound)
-	require.NoError(t, err)
-
-	data := []byte(`anything`)
-
-	cipherText, err := tlock.TimeLock(network.Scheme(), network.PublicKey(), futureRound, data)
-	require.NoError(t, err)
-
-	beacon := chain.Beacon{
-		Round:     futureRound,
-		Signature: id,
+	if testing.Short() {
+		t.Skip("skipping live testing in short mode")
 	}
+	tests := []struct {
+		name      string
+		host      string
+		chainhash string
+	}{
+		{
+			"quicknetT",
+			testnetHost,
+			testnetQuicknetT,
+		},
+		{
+			"quicknet",
+			mainnetHost,
+			mainnetQuicknet,
+		},
+		{
+			"evmnet",
+			mainnetHost,
+			mainnetEvm,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			network, err := http.NewNetwork(tt.host, tt.chainhash)
+			require.NoError(t, err)
 
-	b, err := tlock.TimeUnlock(network.Scheme(), network.PublicKey(), beacon, cipherText)
-	require.NoError(t, err)
+			futureRound := network.RoundNumber(time.Now())
 
-	if !bytes.Equal(data, b) {
-		t.Fatalf("unexpected bytes; expected len %d; got %d", len(data), len(b))
+			id, err := network.Signature(futureRound)
+			require.NoError(t, err)
+
+			data := []byte(`anything`)
+
+			cipherText, err := tlock.TimeLock(network.Scheme(), network.PublicKey(), futureRound, data)
+			require.NoError(t, err)
+
+			beacon := chain.Beacon{
+				Round:     futureRound,
+				Signature: id,
+			}
+
+			b, err := tlock.TimeUnlock(network.Scheme(), network.PublicKey(), beacon, cipherText)
+			require.NoError(t, err)
+
+			if !bytes.Equal(data, b) {
+				t.Fatalf("unexpected bytes; expected len %d; got %d", len(data), len(b))
+			}
+		})
 	}
 }
 
@@ -301,9 +322,14 @@ SW9KaGtndTVTRnJUOGVVQTJUOGk3aTBwQlBzTDlTWUJUZEJQb28KLS0tIEl6Q1Js
 WSt1RXp0d21CbEg0cTFVZGNJaW9pS2l0M0c0bHVxNlNjT2w3UUUKDI4cDlPHPgjy
 UnBmtsw6U2LlKh8iDf0E1PfwDenmKFfQaAGm0WLxdlzP8Q==
 -----END AGE ENCRYPTED FILE-----`
+
 	t.Run("With valid network", func(tt *testing.T) {
-		network, err := http.NewNetwork(mainnetHost, mainnetQuicknet)
+		network, err := fixed.FromInfo(`{"public_key":"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a","period":3,"genesis_time":1692803367,"genesis_seed":"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e","chain_hash":"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971","scheme":"bls-unchained-g1-rfc9380","beacon_id":"quicknet"}`)
 		require.NoError(tt, err)
+		sig, err := hex.DecodeString("929906c959032ab363c9f26570d215d66f5c06cb0c44fe508c12bb5839f04ec895bb6868e5b9ff13ab289bdb5266b394")
+		require.NoError(tt, err)
+
+		network.SetSignature(sig)
 
 		testReader := strings.NewReader(cipher)
 		var plainData bytes.Buffer
@@ -315,24 +341,24 @@ UnBmtsw6U2LlKh8iDf0E1PfwDenmKFfQaAGm0WLxdlzP8Q==
 	})
 
 	t.Run("With invalid network", func(tt *testing.T) {
-		network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
+		network, err := fixed.FromInfo(`{"public_key":"07e1d1d335df83fa98462005690372c643340060d205306a9aa8106b6bd0b3820557ec32c2ad488e4d4f6008f89a346f18492092ccc0d594610de2732c8b808f0095685ae3a85ba243747b1b2f426049010f6b73a0cf1d389351d5aaaa1047f6297d3a4f9749b33eb2d904c9d9ebf17224150ddd7abd7567a9bec6c74480ee0b","period":3,"genesis_time":1727521075,"genesis_seed":"cd7ad2f0e0cce5d8c288f2dd016ffe7bc8dc88dbb229b3da2b6ad736490dfed6","chain_hash":"04f1e9062b8a81f848fded9c12306733282b2727ecced50032187751166ec8c3","scheme":"bls-bn254-unchained-on-g1","beacon_id":"evmnet"}`)
 		require.NoError(tt, err)
 
 		testReader := strings.NewReader(cipher)
 		var plainData bytes.Buffer
 
-		err = tlock.New(network).Decrypt(&plainData, testReader)
+		err = tlock.New(network).Strict().Decrypt(&plainData, testReader)
 		require.ErrorIs(tt, err, tlock.ErrWrongChainhash)
 	})
 
 	t.Run("With quicknet-t invalid network", func(tt *testing.T) {
-		network, err := http.NewNetwork(testnetHost, testnetQuicknetT)
+		network, err := fixed.FromInfo(`{"public_key":"b15b65b46fb29104f6a4b5d1e11a8da6344463973d423661bb0804846a0ecd1ef93c25057f1c0baab2ac53e56c662b66072f6d84ee791a3382bfb055afab1e6a375538d8ffc451104ac971d2dc9b168e2d3246b0be2015969cbaac298f6502da","period":3,"genesis_time":1689232296,"genesis_seed":"40d49d910472d4adb1d67f65db8332f11b4284eecf05c05c5eacd5eef7d40e2d","chain_hash":"cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5","scheme":"bls-unchained-g1-rfc9380","beacon_id":"quicknet-t"}`)
 		require.NoError(tt, err)
 
 		testReader := strings.NewReader(cipher)
 		var plainData bytes.Buffer
 
-		err = tlock.New(network).Decrypt(&plainData, testReader)
+		err = tlock.New(network).Strict().Decrypt(&plainData, testReader)
 		require.ErrorIs(tt, err, tlock.ErrWrongChainhash)
 	})
 }

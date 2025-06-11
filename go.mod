@@ -6,7 +6,6 @@ toolchain go1.23.2
 
 require (
 	filippo.io/age v1.2.1-0.20240618131852-7eedd929a6cf
-	github.com/drand/drand v1.5.11
 	github.com/drand/drand/v2 v2.1.2
 	github.com/drand/go-clients v0.2.3
 	github.com/drand/kyber v1.3.1
@@ -17,7 +16,6 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect

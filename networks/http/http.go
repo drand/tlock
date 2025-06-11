@@ -31,8 +31,6 @@ const timeout = 15 * time.Second
 // chained network.
 var ErrNotUnchained = errors.New("not an unchained network")
 
-// =============================================================================
-
 // Network represents the network support using the drand http client.
 type Network struct {
 	chainHash string
@@ -104,6 +102,10 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 	info, err := client.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("getting client information: %w", err)
+	}
+
+	if info.HashString() != chainHash {
+		return nil, fmt.Errorf("chain hash mistmatch: (requested) %s!=%s (received)", chainHash, info.HashString())
 	}
 
 	sch, err := crypto.SchemeFromName(info.Scheme)
@@ -183,8 +185,6 @@ func (n *Network) SwitchChainHash(new string) error {
 	*n = *test
 	return nil
 }
-
-// =============================================================================
 
 // transport sets reasonable defaults for the connection.
 func transport() *http.Transport {
