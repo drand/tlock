@@ -9,15 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/drand/drand/v2/common"
 	"github.com/drand/drand/v2/common/chain"
 	"github.com/drand/drand/v2/crypto"
+	"github.com/drand/tlock/networks"
 
 	dhttp "github.com/drand/go-clients/client/http"
 	dclient "github.com/drand/go-clients/drand"
@@ -42,17 +43,19 @@ type Network struct {
 	genesis   int64
 }
 
-func NewFromJson(jsonStr string) (*Network, error) {
-	info, err := chain.InfoFromJSON(bytes.NewBufferString(jsonStr))
-	if err != nil {
-		return nil, fmt.Errorf("NFJ1: Unmarshal json error: %w on %q", err, jsonStr)
-	}
-	//var info *chain.Info
-	err = json.Unmarshal([]byte(jsonStr), info)
-	if err != nil {
-		return nil, fmt.Errorf("NFJ2: Unmarshal json error: %w on %q", err, jsonStr)
-	}
+// Check Network implements the networks.Network interface
+var _ networks.Network = &Network{}
 
+func NewFromJson(jsonStr string) (*Network, error) {
+	info := new(chain.Info)
+	err := json.Unmarshal([]byte(jsonStr), &info)
+	if err != nil {
+		slog.Warn("Unable to parse chain info as json, trying as Protobuf", "error", err)
+		info, err = chain.InfoFromJSON(bytes.NewBufferString(jsonStr))
+		if err != nil {
+			return nil, fmt.Errorf("Unmarshal json error: %w on %q", err, jsonStr)
+		}
+	}
 	client, err := dhttp.NewWithInfo(nil, "", info, transport())
 	if err != nil {
 		return nil, fmt.Errorf("creating client: %w", err)
@@ -138,11 +141,6 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 // ChainHash returns the chain hash for this network.
 func (n *Network) ChainHash() string {
 	return n.chainHash
-}
-
-// Current returns the current round for that network at the given date.
-func (n *Network) Current(date time.Time) uint64 {
-	return common.CurrentRound(date.Unix(), n.period, n.genesis)
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.

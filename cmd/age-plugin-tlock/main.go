@@ -21,17 +21,19 @@ import (
 	bls "github.com/drand/kyber-bls12381"
 	"github.com/drand/tlock"
 	"github.com/drand/tlock/cmd/tle/commands"
+	"github.com/drand/tlock/networks"
 	"github.com/drand/tlock/networks/fixed"
 	"github.com/drand/tlock/networks/http"
 )
 
 // using quicknet by default
 var (
-	DefaultChainhash       = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
-	DefaultPK              = "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"
-	DefaultPeriod          = 3
-	DefaultGenesis   int64 = 1692803367
-	DefaultRemote          = "http://api.drand.sh/"
+	DefaultChainhash        = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
+	DefaultPK               = "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"
+	DefaultPeriod           = 3
+	DefaultGenesis    int64 = 1692803367
+	DefaultRemote           = "http://api.drand.sh/"
+	deprecatedFastnet       = "dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493"
 )
 
 func main() {
@@ -40,8 +42,8 @@ func main() {
 	fs.Usage = Usage
 	isKeyGen := fs.Bool("keygen", false, "Generate a test keypair")
 
-	//chainHash := fs.String("chainhash", DefaultChainhash, "The chainhash you want to encrypt towards. Default to the 'quicknet' one")
-	//remote := fs.String("remote", DefaultRemote, "The remote endpoint you want to use for getting data. Default to 'https://api.drand.sh'. If using a chainhash, https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971 will override the default one as well")
+	chainHash := fs.String("chainhash", "", "The chainhash you want to encrypt towards. Default to the 'quicknet' one")
+	remote := fs.String("remote", "", "The remote endpoint you want to use for getting data. Default to 'https://api.drand.sh'. If using a chainhash, https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971 will override the default one as well")
 
 	p, err := page.New("tlock")
 	if err != nil {
@@ -60,7 +62,7 @@ func main() {
 	}
 
 	if *isKeyGen {
-		err := generateKeypair(p, os.Args)
+		err := generateKeypair(p, os.Args, chainHash, remote)
 		if err != nil {
 			log.Fatal("unable to genreate keypair", err)
 		}
@@ -122,10 +124,10 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 		}
 		var sig []byte
 		var err error
-		var network tlock.Network
+		var network networks.Network
 		switch data[0] {
 		case 0:
-			slog.Info("parsed data[0] == 0")
+			slog.Info("parsed data[0] == 0, RAW mode")
 			sig = make([]byte, len(data[1:])/2)
 			n, err := hex.Decode(sig, data[1:])
 			if err != nil {
@@ -139,11 +141,11 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 				return nil, err
 			}
 		case 1:
-			slog.Info("parsed data[0] == 1")
-			network, err = ParseNetwork(string(data[2:]))
+			slog.Info("parsed data[0] == 1, HTTP mode")
+			network, err = ParseNetworkURL(string(data[2:]))
 		case 2:
 			// interactive mode
-			slog.Info("parsed data[0] == 2")
+			slog.Info("parsed data[0] == 2, interactive mode")
 			return interactive{p: p}, nil
 		default:
 			slog.Error("unknown tlock identity", "type", data[0])
@@ -204,7 +206,7 @@ func (i interactive) requestRound() (uint64, error) {
 	return strconv.ParseUint(roundStr, 10, 64)
 }
 
-func (i interactive) requestNetwork(chainhash, round string) (tlock.Network, error) {
+func (i interactive) requestNetwork(chainhash, round string) (networks.Network, error) {
 	if chainhash == "" {
 		var err error
 		chainhash, err = i.p.RequestValue("please provide the chainhash of the network you want to work with (an empty value will use the default one)", false)
@@ -293,14 +295,20 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 				pk = new(bls.KyberG2)
 				offset = 96
 				scheme = crypto.NewPedersenBLSUnchainedG1()
+				// special case to support old ciphertexts using fastnet
+				if hex.EncodeToString(chainhash) == deprecatedFastnet {
+					scheme = crypto.NewPedersenBLSUnchainedSwapped()
+				}
 			} else {
 				return nil, fmt.Errorf("invalid len %d for tlock recipient", length)
 			}
+
+			// decoding public key
 			if err := pk.UnmarshalBinary(data[1+32+1 : 1+32+1+offset]); err != nil {
 				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
 			}
 
-			// Careful, the following actually isn'at interoperable with the rust tlock plugin since it's using different encoding it seems.
+			// parsing genesis time
 			r := bytes.NewReader(data[1+32+1+offset:])
 			genesis, err := binary.ReadVarint(r)
 			if err != nil {
@@ -310,7 +318,6 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 			if err != nil {
 				return nil, fmt.Errorf("unable to read period: %w", err)
 			}
-			scheme = crypto.NewPedersenBLSUnchained()
 			round, i := intDecode(r)
 			if i <= 0 {
 				slog.Error("invalid round in recipient, aborting")
@@ -328,7 +335,7 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 	}
 }
 
-func ParseNetwork(u string) (tlock.Network, error) {
+func ParseNetworkURL(u string) (networks.Network, error) {
 	s := strings.TrimRight(u, "/")
 	urls := strings.Split(s, "/")
 	chainhash := urls[len(urls)-1]
@@ -336,9 +343,9 @@ func ParseNetwork(u string) (tlock.Network, error) {
 		urls = urls[:len(urls)-1]
 		fmt.Fprintln(os.Stderr, "using chainhash from endpoint", chainhash)
 	} else {
-		fmt.Fprintln(os.Stderr, "using default chainhash", chainhash)
+		fmt.Fprintf(os.Stderr, "unable to parse chainhash %q from URL, using quicknet chainhash", chainhash)
 		chainhash = commands.DefaultChain
 	}
-	return http.NewNetwork(strings.Join(urls, "/"), chainhash)
 
+	return http.NewNetwork(strings.Join(urls, "/"), chainhash)
 }

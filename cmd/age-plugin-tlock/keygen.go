@@ -8,17 +8,19 @@ import (
 	page "filippo.io/age/plugin"
 )
 
-func generateKeypair(p *page.Plugin, args []string) error {
+func generateKeypair(p *page.Plugin, args []string, chainhash, remote string) error {
 	var data []byte
 	onlyId := false
 	l := len(args)
 	switch {
+	// when user is not providing enough inputs, default to interactive
 	case l < 3:
 		fmt.Println("Generating an interactive identity prompting you for details upon use")
 
 		data = append([]byte{0x02}, []byte("interactive")...)
-	case l == 3:
 
+	// when we have a URL, default to HTTP mode, if it's not a URL try to parse it as a signature in hex (and only create an identity)
+	case l == 3:
 		host, err := url.Parse(args[l-1])
 		if err != nil {
 			return fmt.Errorf("invalid URL provided in keygen: %w", err)
@@ -37,6 +39,7 @@ func generateKeypair(p *page.Plugin, args []string) error {
 
 			data = append([]byte{0x01}, []byte(host.String())...)
 		}
+	// when we have a public key plus a chainhash, we can create a non-interactive, non-http recipient
 	case l == 4:
 		fmt.Println("generating a static recipient, containing the public key and chainhash")
 
@@ -51,8 +54,6 @@ func generateKeypair(p *page.Plugin, args []string) error {
 
 		data = append([]byte{0x00}, pkb...)
 		data = append(data, chb...)
-
-		//case l == 5:
 	default:
 		Usage()
 		return nil
@@ -80,7 +81,7 @@ func Usage() {
 		"age-plugin-tlock -keygen http://api.drand.sh/\n\t\t" +
 		"providing a public key and a chainhash (requires networking to fetch genesis and period, but is networkless afterwards):\n\t\t\t" +
 		"age-plugin-tlock -keygen <hexadecimal-public-key> <hexadecimal-chainhash> \n\t\t" +
-		//"providing a public key, a chainhash and the signature for the round you're interested in (networkless for decryption): \n\t\t\t" +
-		//"age-plugin-tlock -keygen <hexadecimal-public-key> <hexadecimal-chainhash> <hexadecimal-signature>" +
+		"providing the hexadecimal signature for the round you're interested in (networkless for decryption): \n\t\t\t" +
+		"age-plugin-tlock -keygen <hexadecimal-signature>" +
 		"\n")
 }

@@ -86,16 +86,19 @@ func TestNewIdentity(t *testing.T) {
 }
 
 func TestNewRecipient(t *testing.T) {
+	// Old deprecated Fastnet recipient
 	name, data, err := page.ParseRecipient("age1tlock1yrda2pkkaamwtuux7swx28wtszx9hj7h23cucn40506d77k5unzfxc9qhp32w5nlaca8xx7tty5q4d4t6ck4czmw5q7ufh0kvyhaljwsruqux92z2sthryp5wh43a3npt7xsmu9ckmww8pvpr4kulr97lwr4ne0xz63al5z5ey5fgpmxmxjmnku3uwmf0ewhp2t4rq0qqlu8ljj7lng8rlmrqvpvft27")
-	slog.Info("ParseIdentity", "name", name, "data", data)
 	t.Log(data)
 	require.NoError(t, err)
 	require.Equal(t, "tlock", name)
 
 	pkb, _ := hex.DecodeString("a0b862a7527fee3a731bcb59280ab6abd62d5c0b6ea03dc4ddf6612fdfc9d01f01c31542541771903475eb1ec6615f8d0df0b8b6dce385811d6dcf8cbefb8759e5e616a3dfd054c928940766d9a5b9db91e3b697e5d70a975181e007f87fca5e")
 	pk := new(bls.KyberG2)
-	pk.UnmarshalBinary(pkb)
-	network, err := fixed.NewNetwork("dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493", pk, crypto.NewPedersenBLSUnchained(), 0, 0, nil)
+	require.NoError(t, pk.UnmarshalBinary(pkb))
+
+	// old fastnet details
+	network, err := fixed.NewNetwork("dbd506d6ef76e5f386f41c651dcb808c5bcbd75471cc4eafa3f4df7ad4e4c493", pk, crypto.NewPedersenBLSUnchainedSwapped(), 0, 0, nil)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name    string
@@ -145,7 +148,7 @@ func TestRealValues(t *testing.T) {
 	require.NotNil(t, net)
 
 	sigJson := `{"round":67,"signature":"8a5e6a60b0be2adc46d31a12618cb9bb0584aa90751e7e575582f080dfdb430edf5af11411fe30a786c75c234a67c71e"}`
-	var b *common.Beacon
+	b := new(common.Beacon)
 	err = json.Unmarshal([]byte(sigJson), b)
 	require.NoError(t, err)
 	require.NotNil(t, b)
