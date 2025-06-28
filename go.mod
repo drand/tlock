@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.2
 
 require (
-	filippo.io/age v1.2.1-0.20240618131852-7eedd929a6cf
+	filippo.io/age v1.2.1-0.20240926110859-2214a556f604
 	github.com/drand/drand/v2 v2.1.2
 	github.com/drand/go-clients v0.2.3
 	github.com/drand/kyber v1.3.1

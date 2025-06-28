@@ -62,7 +62,7 @@ func main() {
 	}
 
 	if *isKeyGen {
-		err := generateKeypair(p, os.Args, chainHash, remote)
+		err := generateKeypair(p, os.Args, *chainHash, *remote)
 		if err != nil {
 			log.Fatal("unable to genreate keypair", err)
 		}
@@ -141,8 +141,8 @@ func NewIdentity(p *page.Plugin) func([]byte) (age.Identity, error) {
 				return nil, err
 			}
 		case 1:
-			slog.Info("parsed data[0] == 1, HTTP mode")
-			network, err = ParseNetworkURL(string(data[2:]))
+			slog.Info("parsed data[0] == 1, HTTP mode", "string", string(data[1:]))
+			network, err = ParseNetworkURL(string(data[1:]))
 		case 2:
 			// interactive mode
 			slog.Info("parsed data[0] == 2, interactive mode")
@@ -209,7 +209,7 @@ func (i interactive) requestRound() (uint64, error) {
 func (i interactive) requestNetwork(chainhash, round string) (networks.Network, error) {
 	if chainhash == "" {
 		var err error
-		chainhash, err = i.p.RequestValue("please provide the chainhash of the network you want to work with (an empty value will use the default one)", false)
+		chainhash, err = i.p.RequestValue("Please provide the chainhash of the network you want to work with:", false)
 		if err != nil {
 			return nil, err
 		}
@@ -217,7 +217,7 @@ func (i interactive) requestNetwork(chainhash, round string) (networks.Network, 
 			chainhash = DefaultChainhash
 		}
 	}
-	usePK, err := i.p.Confirm("do you want to provide the group public key and round signature, or do you want to use a HTTP relay?", "use public key", "use HTTP relay")
+	usePK, err := i.p.Confirm("Do you want to provide the group public key and round signature, or do you want to use a HTTP relay?", "use public key", "use HTTP relay")
 	if err != nil {
 		return nil, fmt.Errorf("confirmation error in Unwrap: %w", err)
 	}
@@ -247,7 +247,7 @@ func (i interactive) requestNetwork(chainhash, round string) (networks.Network, 
 		return fixed.NewNetwork(chainhash, pk, sch, 0, 0, sig)
 	}
 
-	host, err := i.p.RequestValue("Please provide the http relay for chainhash (an empty value will use the default one)"+chainhash, false)
+	host, err := i.p.RequestValue(fmt.Sprintf("Please provide the http relay for chainhash %q", chainhash), false)
 	if err != nil {
 		return nil, err
 	}
