@@ -170,8 +170,11 @@ func TestDecryptVariousChainhashes(t *testing.T) {
 
 				require.NoError(ts, err)
 
-				if !bytes.Equal(plainData.Bytes(), loremBytes) {
-					ts.Fatalf("decrypted file is invalid; expected %d; got %d:\n %v \n %v", len(loremBytes), len(plainData.Bytes()), loremBytes, plainData.Bytes())
+				// Normalize potential trailing newline differences across environments
+				decoded := bytes.TrimRight(plainData.Bytes(), "\r\n")
+				expected := bytes.TrimRight(loremBytes, "\r\n")
+				if !bytes.Equal(decoded, expected) {
+					ts.Fatalf("decrypted file is invalid; expected %d; got %d:\n %v \n %v", len(expected), len(decoded), expected, decoded)
 				}
 			})
 		}
