@@ -21,17 +21,21 @@ const (
 
 // =============================================================================
 
-const usage = `tlock v1.3.0 -- github.com/drand/tlock
+const usage = `tlock v1.4.0 -- github.com/drand/tlock
 
 Usage:
 	tle [--encrypt] (-r round)... [--armor] [-o OUTPUT] [INPUT]
 	tle --decrypt [-o OUTPUT] [INPUT]
 	tle --metadata
+	tle --status [INPUT]
+	tle --batch-encrypt [--input-dir DIR] [--output-dir DIR] [--pattern PATTERN]
+	tle --batch-decrypt [--input-dir DIR] [--output-dir DIR] [--pattern PATTERN]
 
 Options:
 	-m, --metadata Displays the metadata of drand network in yaml format.
 	-e, --encrypt  Encrypt the input to the output. Default if omitted.
 	-d, --decrypt  Decrypt the input to the output.
+	-s, --status   Check the encryption status and remaining time for a file.
 	-n, --network  The drand API endpoint to use.
 	-c, --chain    The chain to use. Can use either beacon ID name or beacon hash. Use beacon hash in order to ensure public key integrity.
 	-r, --round    The specific round to use to encrypt the message. Cannot be used with --duration.
@@ -39,6 +43,13 @@ Options:
 	-D, --duration How long to wait before the message can be decrypted.
 	-o, --output   Write the result to the file at path OUTPUT.
 	-a, --armor    Encrypt to a PEM encoded format.
+	-v, --verbose  Enable verbose output with detailed progress information.
+	-q, --quiet    Suppress all output except errors.
+	--batch-encrypt Encrypt multiple files in a directory.
+	--batch-decrypt Decrypt multiple files in a directory.
+	--input-dir    Directory containing files to process (for batch operations).
+	--output-dir   Directory to write processed files (for batch operations).
+	--pattern      File pattern to match (e.g., "*.txt", "*.tle").
 
 If the OUTPUT exists, it will be overwritten.
 
@@ -70,16 +81,24 @@ func PrintUsage(log *log.Logger) {
 
 // Flags represent the values from the command line.
 type Flags struct {
-	Encrypt  bool
-	Decrypt  bool
-	Force    bool
-	Network  string
-	Chain    string
-	Round    uint64
-	Duration string
-	Output   string
-	Armor    bool
-	Metadata bool
+	Encrypt      bool
+	Decrypt      bool
+	Status       bool
+	BatchEncrypt bool
+	BatchDecrypt bool
+	Force        bool
+	Network      string
+	Chain        string
+	Round        uint64
+	Duration     string
+	Output       string
+	Armor        bool
+	Metadata     bool
+	Verbose      bool
+	Quiet        bool
+	InputDir     string
+	OutputDir    string
+	Pattern      string
 }
 
 // Parse will parse the environment variables and command line flags. The command
@@ -114,6 +133,12 @@ func parseCmdline(f *Flags) {
 	flag.BoolVar(&f.Decrypt, "d", f.Decrypt, "decrypt the input to the output")
 	flag.BoolVar(&f.Decrypt, "decrypt", f.Decrypt, "decrypt the input to the output")
 
+	flag.BoolVar(&f.Status, "s", f.Status, "check the encryption status and remaining time")
+	flag.BoolVar(&f.Status, "status", f.Status, "check the encryption status and remaining time")
+
+	flag.BoolVar(&f.BatchEncrypt, "batch-encrypt", f.BatchEncrypt, "encrypt multiple files in a directory")
+	flag.BoolVar(&f.BatchDecrypt, "batch-decrypt", f.BatchDecrypt, "decrypt multiple files in a directory")
+
 	flag.BoolVar(&f.Force, "f", f.Force, "Forces to encrypt against past rounds")
 	flag.BoolVar(&f.Force, "force", f.Force, "Forces to encrypt against past rounds.")
 
@@ -138,12 +163,22 @@ func parseCmdline(f *Flags) {
 	flag.BoolVar(&f.Metadata, "m", f.Metadata, "get metadata about the drand network")
 	flag.BoolVar(&f.Metadata, "metadata", f.Metadata, "get metadata about the drand network")
 
+	flag.BoolVar(&f.Verbose, "v", f.Verbose, "enable verbose output with detailed progress information")
+	flag.BoolVar(&f.Verbose, "verbose", f.Verbose, "enable verbose output with detailed progress information")
+
+	flag.BoolVar(&f.Quiet, "q", f.Quiet, "suppress all output except errors")
+	flag.BoolVar(&f.Quiet, "quiet", f.Quiet, "suppress all output except errors")
+
+	flag.StringVar(&f.InputDir, "input-dir", f.InputDir, "directory containing files to process (for batch operations)")
+	flag.StringVar(&f.OutputDir, "output-dir", f.OutputDir, "directory to write processed files (for batch operations)")
+	flag.StringVar(&f.Pattern, "pattern", f.Pattern, "file pattern to match (e.g., *.txt, *.tle)")
+
 	flag.Parse()
 }
 
 // validateFlags performs a sanity check of the provided flag information.
 func validateFlags(f *Flags) error {
-	// only one of the three f.Metadata, f.Decrypt or f.Encrypt must be true
+	// only one of the main operations must be true
 	count := 0
 	if f.Metadata {
 		count++
@@ -154,8 +189,22 @@ func validateFlags(f *Flags) error {
 	if f.Decrypt {
 		count++
 	}
+	if f.Status {
+		count++
+	}
+	if f.BatchEncrypt {
+		count++
+	}
+	if f.BatchDecrypt {
+		count++
+	}
 	if count != 1 {
-		return fmt.Errorf("only one of -m/--metadata, -d/--decrypt or -e/--encrypt must be passed")
+		return fmt.Errorf("only one of -m/--metadata, -d/--decrypt, -e/--encrypt, -s/--status, --batch-encrypt, or --batch-decrypt must be passed")
+	}
+
+	// Validate verbose and quiet are mutually exclusive
+	if f.Verbose && f.Quiet {
+		return fmt.Errorf("-v/--verbose and -q/--quiet cannot be used together")
 	}
 	switch {
 	case f.Metadata:
@@ -181,6 +230,29 @@ func validateFlags(f *Flags) error {
 					"You've specified a non-default network endpoint but still use the default chain hash.\n"+
 						"You might want to also specify a custom chainhash with the -c/--chain flag.\n\n")
 			}
+		}
+	case f.Status:
+		if f.Duration != "" {
+			return fmt.Errorf("-D/--duration can't be used with -s/--status")
+		}
+		if f.Round != 0 {
+			return fmt.Errorf("-r/--round can't be used with -s/--status")
+		}
+		if f.Armor {
+			return fmt.Errorf("-a/--armor can't be used with -s/--status")
+		}
+	case f.BatchEncrypt, f.BatchDecrypt:
+		if f.InputDir == "" {
+			return fmt.Errorf("--input-dir must be specified for batch operations")
+		}
+		if f.OutputDir == "" {
+			return fmt.Errorf("--output-dir must be specified for batch operations")
+		}
+		if f.Duration == "" && f.Round == 0 && f.BatchEncrypt {
+			return fmt.Errorf("-D/--duration or -r/--round must be specified for batch encryption")
+		}
+		if f.Duration != "" && f.Round != 0 && f.BatchEncrypt {
+			return fmt.Errorf("-D/--duration can't be used with -r/--round")
 		}
 	default:
 		if f.Chain == "" {
