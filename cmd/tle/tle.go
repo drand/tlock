@@ -72,7 +72,11 @@ func run() error {
 
 	switch {
 	case flags.Metadata:
-		err = tlock.New(network).Metadata(dst)
+		if name := flag.Arg(0); name != "" && name != "-" {
+			err = commands.Metadata(dst, src, network)
+		} else {
+			err = tlock.New(network).Metadata(dst)
+		}
 	case flags.Decrypt:
 		err = tlock.New(network).Decrypt(dst, src)
 	default:
