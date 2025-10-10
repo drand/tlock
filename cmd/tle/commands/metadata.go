@@ -81,8 +81,7 @@ func Metadata(dst io.Writer, src io.Reader, network *http.Network) error {
 	// Estimate time for the given round
 	now := time.Now()
 	current := network.Current(now)
-	low := now.Add(-365 * 24 * time.Hour)
-	high := now.Add(365 * 24 * time.Hour)
+	var low, high time.Time
 	if round <= current {
 		high = now
 		low = now.Add(-365 * 24 * time.Hour)
@@ -134,13 +133,4 @@ func roundToTimeBinarySearch(network *http.Network, target uint64, low, high tim
 }
 
 // parseArgs tries to extract round and chain from a tlock stanza arguments slice.
-func parseArgs(args []string) (uint64, string, error) {
-	if len(args) != 2 {
-		return 0, "", fmt.Errorf("invalid tlock stanza arguments")
-	}
-	round, err := strconv.ParseUint(args[0], 10, 64)
-	if err != nil {
-		return 0, "", err
-	}
-	return round, args[1], nil
-}
+// (no other helpers)
