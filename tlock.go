@@ -10,6 +10,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/drand/tlock/networks"
+
 	"filippo.io/age"
 	"filippo.io/age/armor"
 	chain "github.com/drand/drand/v2/common"
@@ -25,24 +27,9 @@ import (
 var ErrTooEarly = errors.New("too early to decrypt")
 var ErrInvalidPublicKey = errors.New("the public key received from the network to encrypt this was infinity and thus insecure")
 
-// =============================================================================
-
-// Network represents a system that provides support for encrypting/decrypting
-// a DEK based on a future time.
-type Network interface {
-	ChainHash() string
-	Current(time.Time) uint64
-	PublicKey() kyber.Point
-	Scheme() crypto.Scheme
-	Signature(roundNumber uint64) ([]byte, error)
-	SwitchChainHash(string) error
-}
-
-// =============================================================================
-
 // Tlock provides an API for timelock encryption and decryption.
 type Tlock struct {
-	network        Network
+	network        networks.Network
 	trustChainhash bool
 }
 
@@ -50,7 +37,7 @@ type Tlock struct {
 // can be decrypted until the future. By default a new network will trust the
 // chainhash it sees in ciphertexts and try and use these unless Strict was
 // called to prevent it.
-func New(network Network) Tlock {
+func New(network networks.Network) Tlock {
 	return Tlock{
 		network:        network,
 		trustChainhash: true,
@@ -118,7 +105,7 @@ func (t Tlock) Metadata(dst io.Writer) (err error) {
 	scheme := t.network.Scheme()
 	metadata := Metadata{
 		ChainHash: t.network.ChainHash(),
-		Current:   t.network.Current(time.Now()),
+		Current:   t.network.RoundNumber(time.Now()),
 		PublicKey: t.network.PublicKey().String(),
 		Scheme:    scheme.String(),
 	}

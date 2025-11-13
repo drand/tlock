@@ -1,0 +1,87 @@
+package main
+
+import (
+	"encoding/hex"
+	"fmt"
+	"net/url"
+
+	page "filippo.io/age/plugin"
+)
+
+func generateKeypair(p *page.Plugin, args []string, chainhash, remote string) error {
+	var data []byte
+	onlyID := false
+	l := len(args)
+	switch {
+	// when user is not providing enough inputs, default to interactive
+	case l < 3:
+		fmt.Println("Generating an interactive identity prompting you for details upon use")
+
+		data = append([]byte{0x02}, []byte("interactive")...)
+
+	// when we have a URL, default to HTTP mode, if it's not a URL try to parse it as a signature in hex (and only create an identity)
+	case l == 3:
+		host, err := url.Parse(args[l-1])
+		if err != nil {
+			return fmt.Errorf("invalid URL provided in keygen: %w", err)
+		}
+		if !host.IsAbs() {
+			fmt.Println("generating an identity based on the provided signature")
+			sig, err := hex.DecodeString(args[l-1])
+			if err != nil {
+				return fmt.Errorf("invalid URL/signature provided in keygen: %w", err)
+			}
+
+			onlyID = true
+			data = append([]byte{0x00}, sig...)
+		} else {
+			fmt.Println("generating a HTTP identity, relying on the network to get data")
+
+			data = append([]byte{0x01}, []byte(host.String())...)
+		}
+	// when we have a public key plus a chainhash, we can create a non-interactive, non-http recipient
+	case l == 4:
+		fmt.Println("generating a static recipient, containing the public key and chainhash")
+
+		pkb, err := hex.DecodeString(args[2])
+		if err != nil {
+			return fmt.Errorf("invalid public key hex provided in keygen: %w", err)
+		}
+		chb, err := hex.DecodeString(args[3])
+		if err != nil {
+			return fmt.Errorf("invalid chainhash hex provided in keygen: %w", err)
+		}
+
+		data = append([]byte{0x00}, pkb...)
+		data = append(data, chb...)
+	default:
+		Usage()
+		return nil
+	}
+
+	// we generate a recipient unless we only want an Identity (e.g. we got a signature instead as input)
+	if !onlyID {
+		pub := page.EncodeRecipient(p.Name(), data)
+		fmt.Println("recipient", pub)
+	}
+
+	priv := page.EncodeIdentity(p.Name(), data)
+	fmt.Println("identity", priv)
+	return nil
+}
+
+func Usage() {
+	fmt.Println("Usage of age-plugin-tlock:")
+	fmt.Printf("\t-keygen\n\t\tgenerate age identity and recipient for age-plugin-tlock usage. You have options:\n\t\t" +
+		"use age in interactive mode, getting prompted for all required data:\n\t\t\t" +
+		"age-plugin-tlock -keygen\n\t\t" +
+		"providing a http endpoint (works for both encryption and decryption, but require networking): \n\t\t\t" +
+		"age-plugin-tlock -keygen http://api.drand.sh/\n\t\t" +
+		"providing the signature of a given round in hexadecimal, only generates the identity required for decryption with it: \n\t\t\t" +
+		"age-plugin-tlock -keygen http://api.drand.sh/\n\t\t" +
+		"providing a public key and a chainhash (requires networking to fetch genesis and period, but is networkless afterwards):\n\t\t\t" +
+		"age-plugin-tlock -keygen <hexadecimal-public-key> <hexadecimal-chainhash> \n\t\t" +
+		"providing the hexadecimal signature for the round you're interested in (networkless for decryption): \n\t\t\t" +
+		"age-plugin-tlock -keygen <hexadecimal-signature>" +
+		"\n")
+}
