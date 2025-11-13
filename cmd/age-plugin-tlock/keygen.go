@@ -10,7 +10,7 @@ import (
 
 func generateKeypair(p *page.Plugin, args []string, chainhash, remote string) error {
 	var data []byte
-	onlyId := false
+	onlyID := false
 	l := len(args)
 	switch {
 	// when user is not providing enough inputs, default to interactive
@@ -32,7 +32,7 @@ func generateKeypair(p *page.Plugin, args []string, chainhash, remote string) er
 				return fmt.Errorf("invalid URL/signature provided in keygen: %w", err)
 			}
 
-			onlyId = true
+			onlyID = true
 			data = append([]byte{0x00}, sig...)
 		} else {
 			fmt.Println("generating a HTTP identity, relying on the network to get data")
@@ -60,7 +60,7 @@ func generateKeypair(p *page.Plugin, args []string, chainhash, remote string) er
 	}
 
 	// we generate a recipient unless we only want an Identity (e.g. we got a signature instead as input)
-	if !onlyId {
+	if !onlyID {
 		pub := page.EncodeRecipient(p.Name(), data)
 		fmt.Println("recipient", pub)
 	}

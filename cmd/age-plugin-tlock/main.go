@@ -257,13 +257,13 @@ func (i interactive) requestNetwork(chainhash, round string) (networks.Network, 
 	return http.NewNetwork(host, chainhash)
 }
 
-func (p interactive) Wrap(fileKey []byte) ([]*age.Stanza, error) {
+func (i interactive) Wrap(fileKey []byte) ([]*age.Stanza, error) {
 	fmt.Fprintln(os.Stderr, "starting Wrap in interactive mode")
-	net, err := p.requestNetwork("", "")
+	net, err := i.requestNetwork("", "")
 	if err != nil {
 		return nil, err
 	}
-	round, err := p.requestRound()
+	round, err := i.requestRound()
 	if err != nil {
 		return nil, err
 	}
@@ -297,6 +297,7 @@ func NewRecipient(p *page.Plugin) func([]byte) (age.Recipient, error) {
 				scheme = crypto.NewPedersenBLSUnchainedG1()
 				// special case to support old ciphertexts using fastnet
 				if hex.EncodeToString(chainhash) == deprecatedFastnet {
+					//lint:ignore SA1019 We keep compatibility with older schemes
 					scheme = crypto.NewPedersenBLSUnchainedSwapped()
 				}
 			} else {
