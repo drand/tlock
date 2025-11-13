@@ -46,14 +46,14 @@ type Network struct {
 // Check Network implements the networks.Network interface
 var _ networks.Network = &Network{}
 
-func NewFromJson(jsonStr string) (*Network, error) {
+func NewFromJSON(jsonStr string) (*Network, error) {
 	info := new(chain.Info)
 	err := json.Unmarshal([]byte(jsonStr), &info)
 	if err != nil {
 		slog.Warn("Unable to parse chain info as json, trying as Protobuf", "error", err)
 		info, err = chain.InfoFromJSON(bytes.NewBufferString(jsonStr))
 		if err != nil {
-			return nil, fmt.Errorf("Unmarshal json error: %w on %q", err, jsonStr)
+			return nil, fmt.Errorf("unmarshal json error: %w on %q", err, jsonStr)
 		}
 	}
 	client, err := dhttp.NewWithInfo(nil, "", info, transport())

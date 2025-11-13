@@ -1,3 +1,4 @@
+// Package networks allows to represent and work with various tlock-compatible networks.
 package networks
 
 import (
