@@ -15,6 +15,9 @@ const (
 )
 
 func Test_WrapUnwrap(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent tests in short mode")
+	}
 	network, err := http.NewNetwork(testnetHost, testnetChainHash)
 	if err != nil {
 		t.Fatalf("network error %s", err)

@@ -38,6 +38,9 @@ const (
 )
 
 func TestEarlyDecryptionWithDuration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent tests in short mode")
+	}
 	for host, hashes := range map[string][]string{testnetHost: {testnetUnchainedOnEVM, testnetQuicknetT},
 		mainnetHost: {mainnetQuicknet}} {
 		for _, hash := range hashes {
@@ -76,6 +79,9 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 }
 
 func TestEarlyDecryptionWithRound(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent tests in short mode")
+	}
 	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
@@ -147,6 +153,9 @@ func TestEncryptionWithDuration(t *testing.T) {
 }
 
 func TestDecryptVariousChainhashes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent tests in short mode")
+	}
 	dir := "./testdata"
 	prefix := "lorem-"
 
@@ -182,6 +191,9 @@ func TestDecryptVariousChainhashes(t *testing.T) {
 }
 
 func TestDecryptStrict(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent tests in short mode")
+	}
 	dir := "./testdata"
 	prefix := "lorem-"
 
@@ -377,6 +389,9 @@ UnBmtsw6U2LlKh8iDf0E1PfwDenmKFfQaAGm0WLxdlzP8Q==
 }
 
 func TestInteropWithJS(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network-dependent tests in short mode")
+	}
 	t.Run("on Mainnet with G1 sigs", func(t *testing.T) {
 		cipher := `-----BEGIN AGE ENCRYPTED FILE-----
 YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHRsb2NrIDEyMDQxMTI1IDUyZGI5YmE3
@@ -426,4 +441,62 @@ VDNsVkpZT3F2Mk14NWRIU3IzbnhuUUsyaTdsS0ptclNoNk9lOAqkjk0Ypkj6JxKk
 		require.Equal(t, expected, plainData.String())
 	})
 
+}
+
+// TestDeterministicEncryptionDecryption tests encryption and decryption
+// using a fixed network without requiring actual network access.
+// This provides deterministic test vectors.
+func TestDeterministicEncryptionDecryption(t *testing.T) {
+	t.Run("quicknet-g1 round 12040883", func(t *testing.T) {
+		// Use the same test vector as in TestDecryptText
+		network, err := fixed.FromInfo(`{"public_key":"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a","period":3,"genesis_time":1692803367,"genesis_seed":"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e","chain_hash":"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971","scheme":"bls-unchained-g1-rfc9380","beacon_id":"quicknet"}`)
+		require.NoError(t, err)
+
+		sig, err := hex.DecodeString("929906c959032ab363c9f26570d215d66f5c06cb0c44fe508c12bb5839f04ec895bb6868e5b9ff13ab289bdb5266b394")
+		require.NoError(t, err)
+		network.SetSignature(sig)
+
+		// Encrypt
+		plainData := "hello world"
+		var cipherData bytes.Buffer
+
+		err = tlock.New(network).Encrypt(&cipherData, bytes.NewReader([]byte(plainData)), 12040883)
+		require.NoError(t, err)
+
+		// Decrypt
+		var decryptedData bytes.Buffer
+		err = tlock.New(network).Decrypt(&decryptedData, &cipherData)
+		require.NoError(t, err)
+
+		require.Equal(t, plainData, decryptedData.String())
+	})
+}
+
+// TestDeterministicTimeLock tests the TimeLock and TimeUnlock functions
+// with deterministic test vectors.
+func TestDeterministicTimeLock(t *testing.T) {
+	network, err := fixed.FromInfo(`{"public_key":"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a","period":3,"genesis_time":1692803367,"genesis_seed":"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e","chain_hash":"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971","scheme":"bls-unchained-g1-rfc9380","beacon_id":"quicknet"}`)
+	require.NoError(t, err)
+
+	sig, err := hex.DecodeString("929906c959032ab363c9f26570d215d66f5c06cb0c44fe508c12bb5839f04ec895bb6868e5b9ff13ab289bdb5266b394")
+	require.NoError(t, err)
+	network.SetSignature(sig)
+
+	data := []byte("deterministic test data")
+	round := uint64(12040883)
+
+	// Encrypt
+	cipherText, err := tlock.TimeLock(network.Scheme(), network.PublicKey(), round, data)
+	require.NoError(t, err)
+
+	beacon := chain.Beacon{
+		Round:     round,
+		Signature: sig,
+	}
+
+	// Decrypt
+	decrypted, err := tlock.TimeUnlock(network.Scheme(), network.PublicKey(), beacon, cipherText)
+	require.NoError(t, err)
+
+	require.Equal(t, data, decrypted)
 }
