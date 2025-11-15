@@ -59,7 +59,11 @@ Example:
     $ tle -D 10d -o encrypted_file data_to_encrypt
 
 After the specified duration:
-    $ tle -d -o decrypted_file.txt encrypted_file`
+    $ tle -d -o decrypted_file.txt encrypted_file
+
+Metadata examples:
+    $ tle -m                 # Prints network metadata (YAML)
+    $ tle -m encrypted.age   # Prints ciphertext metadata (round, chain, time)`
 
 // PrintUsage displays the usage information.
 func PrintUsage(log *log.Logger) {
