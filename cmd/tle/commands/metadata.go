@@ -2,7 +2,6 @@ package commands
 
 import (
 	"bufio"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"strconv"
@@ -24,56 +23,38 @@ type CiphertextMetadata struct {
 // Metadata reads INPUT from src and, if it contains a tlock stanza, outputs YAML with round, chainhash and estimated time.
 func Metadata(dst io.Writer, src io.Reader, network *http.Network) error {
 	rr := bufio.NewReader(src)
+
+	// Use armor.NewReader to handle armor decoding automatically
 	// Only support armored input for metadata extraction in this change.
-	if start, _ := rr.Peek(len(armor.Header)); string(start) != armor.Header {
-		return fmt.Errorf("metadata from INPUT currently supports only armored age files")
-	}
-	// Read base64-encoded header block: try decoding each line until we find the tlock stanza.
-	if _, err := rr.ReadString('\n'); err != nil { // BEGIN line
-		return fmt.Errorf("read begin line: %w", err)
-	}
+	armorReader := armor.NewReader(rr)
+
+	// Read from the de-armored content to find the tlock stanza
+	scanner := bufio.NewScanner(armorReader)
 	var round uint64
 	var chainHash string
 	found := false
-	for {
-		line, err := rr.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("read armored content: %w", err)
-		}
-		s := strings.TrimSpace(line)
-		if s == "" {
-			continue
-		}
-		if strings.HasPrefix(s, "-----END ") {
-			break
-		}
-		// Try to decode this line as base64
-		dec, err := base64.StdEncoding.DecodeString(s)
-		if err != nil {
-			continue
-		}
-		decoded := string(dec)
-		// Look for tlock stanza in this decoded line
-		for _, line := range strings.Split(decoded, "\n") {
-			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "-> ") {
-				fields := strings.Fields(line)
-				if len(fields) >= 4 && fields[1] == "tlock" {
-					r, err := strconv.ParseUint(fields[2], 10, 64)
-					if err != nil {
-						return fmt.Errorf("parse round: %w", err)
-					}
-					round = r
-					chainHash = fields[3]
-					found = true
-					break
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "-> ") {
+			fields := strings.Fields(line)
+			if len(fields) >= 4 && fields[1] == "tlock" {
+				r, err := strconv.ParseUint(fields[2], 10, 64)
+				if err != nil {
+					return fmt.Errorf("parse round: %w", err)
 				}
+				round = r
+				chainHash = fields[3]
+				found = true
+				break
 			}
 		}
-		if found {
-			break
-		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read armored content: %w", err)
+	}
+
 	if !found {
 		return fmt.Errorf("no tlock stanza found in armored age header")
 	}
