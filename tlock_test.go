@@ -304,6 +304,165 @@ func TestTimeLockUnlock(t *testing.T) {
 	}
 }
 
+func TestTimeLockUnlockWithAdditionalData(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live testing in short mode")
+	}
+	tests := []struct {
+		name      string
+		host      string
+		chainhash string
+	}{
+		{
+			"quicknetT",
+			testnetHost,
+			testnetQuicknetT,
+		},
+		{
+			"quicknet",
+			mainnetHost,
+			mainnetQuicknet,
+		},
+		{
+			"evmnet",
+			mainnetHost,
+			mainnetEvm,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			network, err := http.NewNetwork(tt.host, tt.chainhash)
+			require.NoError(t, err)
+
+			futureRound := network.RoundNumber(time.Now())
+
+			id, err := network.Signature(futureRound)
+			require.NoError(t, err)
+
+			data := []byte(`sensitive data`)
+			additionalData := []byte("tx_hash_0x1234567890abcdef")
+
+			// Encrypt with additional data
+			cipherText, err := tlock.TimeLockWithAdditionalData(network.Scheme(), network.PublicKey(), futureRound, data, additionalData)
+			require.NoError(t, err)
+
+			beacon := chain.Beacon{
+				Round:     futureRound,
+				Signature: id,
+			}
+
+			// Decrypt with correct additional data should succeed
+			b, err := tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherText, additionalData)
+			require.NoError(t, err)
+			require.Equal(t, data, b, "decrypted data should match original")
+
+			// Decrypt with incorrect additional data should fail
+			incorrectAD := []byte("tx_hash_0xDIFFERENT")
+			_, err = tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherText, incorrectAD)
+			require.Error(t, err, "decryption with incorrect additional data should fail")
+			require.Contains(t, err.Error(), "invalid proof", "error should indicate cryptographic failure")
+
+			// Decrypt without additional data should fail
+			_, err = tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherText, nil)
+			require.Error(t, err, "decryption without additional data should fail")
+			require.Contains(t, err.Error(), "invalid proof", "error should indicate cryptographic failure")
+		})
+	}
+}
+
+func TestReplayAttackPreventionWithAdditionalData(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live testing in short mode")
+	}
+
+	network, err := http.NewNetwork(testnetHost, testnetQuicknetT)
+	require.NoError(t, err)
+
+	futureRound := network.RoundNumber(time.Now())
+
+	id, err := network.Signature(futureRound)
+	require.NoError(t, err)
+
+	beacon := chain.Beacon{
+		Round:     futureRound,
+		Signature: id,
+	}
+
+	// Same message, different contexts
+	message := []byte("transfer 100 tokens")
+	contextAlice := []byte("recipient:alice|nonce:1")
+	contextBob := []byte("recipient:bob|nonce:1")
+
+	// Encrypt for Alice's context
+	cipherTextAlice, err := tlock.TimeLockWithAdditionalData(network.Scheme(), network.PublicKey(), futureRound, message, contextAlice)
+	require.NoError(t, err)
+
+	// Encrypt for Bob's context
+	cipherTextBob, err := tlock.TimeLockWithAdditionalData(network.Scheme(), network.PublicKey(), futureRound, message, contextBob)
+	require.NoError(t, err)
+
+	// Ciphertexts should be different even though message is the same
+	require.NotEqual(t, cipherTextAlice.U, cipherTextBob.U, "different contexts should produce different ciphertexts")
+
+	// Decrypt Alice's ciphertext with Alice's context - should succeed
+	decryptedAlice, err := tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherTextAlice, contextAlice)
+	require.NoError(t, err)
+	require.Equal(t, message, decryptedAlice)
+
+	// Try to "replay" Alice's ciphertext in Bob's context - should fail
+	_, err = tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherTextAlice, contextBob)
+	require.Error(t, err, "replay attack should be prevented")
+	require.Contains(t, err.Error(), "invalid proof")
+
+	// Decrypt Bob's ciphertext with Bob's context - should succeed
+	decryptedBob, err := tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherTextBob, contextBob)
+	require.NoError(t, err)
+	require.Equal(t, message, decryptedBob)
+}
+
+func TestBackwardCompatibilityWithoutAdditionalData(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping live testing in short mode")
+	}
+
+	network, err := http.NewNetwork(testnetHost, testnetQuicknetT)
+	require.NoError(t, err)
+
+	futureRound := network.RoundNumber(time.Now())
+
+	id, err := network.Signature(futureRound)
+	require.NoError(t, err)
+
+	data := []byte(`test data`)
+
+	// Encrypt without additional data using TimeLock
+	cipherText1, err := tlock.TimeLock(network.Scheme(), network.PublicKey(), futureRound, data)
+	require.NoError(t, err)
+
+	// Encrypt without additional data using TimeLockWithAdditionalData with nil AD
+	cipherText2, err := tlock.TimeLockWithAdditionalData(network.Scheme(), network.PublicKey(), futureRound, data, nil)
+	require.NoError(t, err)
+
+	beacon := chain.Beacon{
+		Round:     futureRound,
+		Signature: id,
+	}
+
+	// Both should decrypt successfully
+	b1, err := tlock.TimeUnlock(network.Scheme(), network.PublicKey(), beacon, cipherText1)
+	require.NoError(t, err)
+	require.Equal(t, data, b1)
+
+	b2, err := tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherText2, nil)
+	require.NoError(t, err)
+	require.Equal(t, data, b2)
+
+	// Decrypt with TimeUnlock using TimeUnlockWithAdditionalData should also work
+	b3, err := tlock.TimeUnlockWithAdditionalData(network.Scheme(), network.PublicKey(), beacon, cipherText1, nil)
+	require.NoError(t, err)
+	require.Equal(t, data, b3)
+}
+
 func TestCannotEncryptWithPointAtInfinity(t *testing.T) {
 	suite := bls.NewBLS12381Suite()
 	t.Run("on G2", func(t *testing.T) {
