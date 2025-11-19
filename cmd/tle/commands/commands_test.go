@@ -3,10 +3,13 @@ package commands
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/drand/tlock/networks/http"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestParseDuration(t *testing.T) {
@@ -147,4 +150,45 @@ func TestEncryptionWithDurationOverflowUsingOtherUnits(t *testing.T) {
 	}
 	err := Encrypt(flags, os.Stdout, bytes.NewBufferString("very nice"), nil)
 	require.ErrorIs(t, err, ErrInvalidDurationValue)
+}
+
+func TestMetadata(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
+
+	// use testnet quicknet-t network matching the testdata file
+	testnetHost := "http://pl-eu.testnet.drand.sh"
+	testnetQuicknetT := "cc9c398442737cbd141526600919edd69f1d6f9b4adb67e4d912fbc64341a9a5"
+
+	network, err := http.NewNetwork(testnetHost, testnetQuicknetT)
+	require.NoError(t, err)
+
+	// open the testdata file
+	testdataPath := filepath.Join("..", "..", "..", "testdata", "lorem-tle-testnet-quicknet-t-2024-01-17-15-28.tle")
+	f, err := os.Open(testdataPath)
+	require.NoError(t, err)
+	defer f.Close()
+
+	// extract metadata
+	var output bytes.Buffer
+	err = Metadata(&output, f, network)
+	require.NoError(t, err)
+
+	// verify output is valid YAML with expected fields
+	var metadata CiphertextMetadata
+	err = yaml.Unmarshal(output.Bytes(), &metadata)
+	require.NoError(t, err)
+
+	// verify fields are populated
+	require.NotZero(t, metadata.Round, "round should be non-zero")
+	require.Equal(t, testnetQuicknetT, metadata.ChainHash, "chain hash should match")
+	require.False(t, metadata.Time.IsZero(), "time should be set")
+
+	// verify the output contains the expected YAML keys
+	outputStr := output.String()
+	require.Contains(t, outputStr, "round:", "output should contain round field")
+	require.Contains(t, outputStr, "chain_hash:", "output should contain chain_hash field")
+	require.Contains(t, outputStr, "time:", "output should contain time field")
+	require.Contains(t, outputStr, testnetQuicknetT, "output should contain the chain hash value")
 }
