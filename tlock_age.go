@@ -11,6 +11,7 @@ import (
 
 	"filippo.io/age"
 	chain "github.com/drand/drand/v2/common"
+	"github.com/drand/tlock/networks"
 )
 
 var ErrWrongChainhash = errors.New("invalid chainhash")
@@ -18,18 +19,18 @@ var ErrWrongChainhash = errors.New("invalid chainhash")
 // Recipient implements the age Recipient interface. This is used to encrypt
 // data with the age Encrypt API.
 type Recipient struct {
-	network     Network
+	network     networks.Network
 	roundNumber uint64
 }
 
-func NewRecipient(network Network, roundNumber uint64) *Recipient {
+func NewRecipient(network networks.Network, roundNumber uint64) *Recipient {
 	return &Recipient{
 		network:     network,
 		roundNumber: roundNumber,
 	}
 }
 
-func (t *Recipient) SetNetwork(network Network) {
+func (t *Recipient) SetNetwork(network networks.Network) {
 	t.network = network
 }
 
@@ -83,18 +84,18 @@ func (t *Recipient) String() string {
 // Identity implements the age Identity interface. This is used to decrypt
 // data with the age Decrypt API.
 type Identity struct {
-	network        Network
+	network        networks.Network
 	trustChainhash bool
 }
 
-func NewIdentity(network Network, trustChainhash bool) *Identity {
+func NewIdentity(network networks.Network, trustChainhash bool) *Identity {
 	return &Identity{
 		network:        network,
 		trustChainhash: trustChainhash,
 	}
 }
 
-func (t *Identity) SetNetwork(network Network) {
+func (t *Identity) SetNetwork(network networks.Network) {
 	t.network = network
 }
 
@@ -150,7 +151,7 @@ func (t *Identity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
 				"%w: expected round %d > %d current round",
 				ErrTooEarly,
 				roundNumber,
-				t.network.Current(time.Now()))
+				t.network.RoundNumber(time.Now()))
 		}
 
 		beacon := chain.Beacon{

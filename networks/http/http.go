@@ -2,19 +2,23 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	chain "github.com/drand/drand/v2/common"
+	"github.com/drand/drand/v2/common/chain"
 	"github.com/drand/drand/v2/crypto"
+	"github.com/drand/tlock/networks"
 
 	dhttp "github.com/drand/go-clients/client/http"
 	dclient "github.com/drand/go-clients/drand"
@@ -22,13 +26,11 @@ import (
 )
 
 // timeout represents the maximum amount of time to wait for network operations.
-const timeout = 5 * time.Second
+const timeout = 15 * time.Second
 
 // ErrNotUnchained represents an error when the informed chain belongs to a
 // chained network.
 var ErrNotUnchained = errors.New("not an unchained network")
-
-// =============================================================================
 
 // Network represents the network support using the drand http client.
 type Network struct {
@@ -39,6 +41,42 @@ type Network struct {
 	scheme    crypto.Scheme
 	period    time.Duration
 	genesis   int64
+}
+
+// Check Network implements the networks.Network interface
+var _ networks.Network = &Network{}
+
+func NewFromJSON(jsonStr string) (*Network, error) {
+	info := new(chain.Info)
+	err := json.Unmarshal([]byte(jsonStr), &info)
+	if err != nil {
+		slog.Warn("Unable to parse chain info as json, trying as Protobuf", "error", err)
+		info, err = chain.InfoFromJSON(bytes.NewBufferString(jsonStr))
+		if err != nil {
+			return nil, fmt.Errorf("unmarshal json error: %w on %q", err, jsonStr)
+		}
+	}
+	client, err := dhttp.NewWithInfo(nil, "", info, transport())
+	if err != nil {
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	sch, err := crypto.SchemeFromName(info.Scheme)
+	if err != nil {
+		return nil, ErrNotUnchained
+	}
+	network := Network{
+		chainHash: info.HashString(),
+		host:      "",
+		client:    client,
+		publicKey: info.PublicKey,
+		scheme:    *sch,
+		period:    info.Period,
+		genesis:   info.GenesisTime,
+	}
+
+	return &network, nil
+
 }
 
 // NewNetwork constructs a network for use that will use the http client.
@@ -78,7 +116,12 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 		return nil, ErrNotUnchained
 	}
 
-	if sch.Name == crypto.DefaultSchemeID {
+	switch sch.Name {
+	case crypto.ShortSigSchemeID:
+	case crypto.SigsOnG1ID:
+	case crypto.UnchainedSchemeID:
+	case crypto.BN254UnchainedOnG1SchemeID:
+	default:
 		return nil, ErrNotUnchained
 	}
 
@@ -98,11 +141,6 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 // ChainHash returns the chain hash for this network.
 func (n *Network) ChainHash() string {
 	return n.chainHash
-}
-
-// Current returns the current round for that network at the given date.
-func (n *Network) Current(date time.Time) uint64 {
-	return chain.CurrentRound(date.Unix(), n.period, n.genesis)
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.
@@ -136,7 +174,7 @@ func (n *Network) RoundNumber(t time.Time) uint64 {
 	return n.client.RoundAt(t)
 }
 
-// SwitchChainHash allows to start using another chainhash on the same host network
+// SwitchChainHash allows to start using another chainHash on the same host network
 func (n *Network) SwitchChainHash(new string) error {
 	test, err := NewNetwork(n.host, new)
 	if err != nil {
@@ -145,8 +183,6 @@ func (n *Network) SwitchChainHash(new string) error {
 	*n = *test
 	return nil
 }
-
-// =============================================================================
 
 // transport sets reasonable defaults for the connection.
 func transport() *http.Transport {

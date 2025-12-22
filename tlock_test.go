@@ -47,7 +47,6 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 			network, err := http.NewNetwork(host, hash)
 			require.NoError(t, err)
 
-			// =========================================================================
 			// Encrypt
 
 			// Read the plaintext data to be encrypted.
@@ -65,7 +64,6 @@ func TestEarlyDecryptionWithDuration(t *testing.T) {
 			err = tlock.New(network).Encrypt(&cipherData, in, roundNumber)
 			require.NoError(t, err)
 
-			// =========================================================================
 			// Decrypt
 
 			// Write the decoded information to this buffer.
@@ -85,7 +83,6 @@ func TestEarlyDecryptionWithRound(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
@@ -99,7 +96,6 @@ func TestEarlyDecryptionWithRound(t *testing.T) {
 	err = tlock.New(network).Encrypt(&cipherData, in, futureRound)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Decrypt
 
 	// Write the decoded information to this buffer.
@@ -118,7 +114,6 @@ func TestEncryptionWithDuration(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Encrypt
 
 	// Read the plaintext data to be encrypted.
@@ -136,7 +131,6 @@ func TestEncryptionWithDuration(t *testing.T) {
 	err = tlock.New(network).Encrypt(&cipherData, in, roundNumber)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Decrypt
 
 	time.Sleep(5 * time.Second)
@@ -230,9 +224,7 @@ func TestEncryptionWithRound(t *testing.T) {
 	network, err := http.NewNetwork(testnetHost, testnetUnchainedOnEVM)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Encrypt
-
 	// Read the plaintext data to be encrypted.
 	in, err := os.Open("testdata/data.txt")
 	require.NoError(t, err)
@@ -245,9 +237,7 @@ func TestEncryptionWithRound(t *testing.T) {
 	err = tlock.New(network).Encrypt(&cipherData, in, futureRound)
 	require.NoError(t, err)
 
-	// =========================================================================
 	// Decrypt
-
 	var plainData bytes.Buffer
 
 	// Wait for the future beacon to exist.

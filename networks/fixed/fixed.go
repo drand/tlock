@@ -3,11 +3,12 @@ package fixed
 
 import (
 	"encoding/json"
-	"errors"
 	"time"
 
 	chain "github.com/drand/drand/v2/common"
 	"github.com/drand/drand/v2/crypto"
+	"github.com/drand/tlock/networks"
+	"github.com/drand/tlock/networks/http"
 
 	"github.com/drand/kyber"
 )
@@ -22,9 +23,8 @@ type Network struct {
 	fixedSig  []byte
 }
 
-// ErrNotUnchained represents an error when the informed chain belongs to a
-// chained network.
-var ErrNotUnchained = errors.New("not an unchained network")
+// Check Network implements the networks.Network interface
+var _ networks.Network = &Network{}
 
 // NewNetwork constructs a network with static, fixed data
 func NewNetwork(chainHash string, publicKey kyber.Point, sch *crypto.Scheme, period time.Duration, genesis int64, sig []byte) (*Network, error) {
@@ -34,7 +34,7 @@ func NewNetwork(chainHash string, publicKey kyber.Point, sch *crypto.Scheme, per
 	case crypto.UnchainedSchemeID:
 	case crypto.BN254UnchainedOnG1SchemeID:
 	default:
-		return nil, ErrNotUnchained
+		return nil, http.ErrNotUnchained
 	}
 
 	return &Network{
@@ -74,17 +74,13 @@ func FromInfo(jsonInfo string) (*Network, error) {
 }
 
 func (n *Network) SetSignature(sig []byte) {
-	n.fixedSig = sig
+	n.fixedSig = make([]byte, len(sig))
+	copy(n.fixedSig, sig)
 }
 
 // ChainHash returns the chain hash for this network.
 func (n *Network) ChainHash() string {
 	return n.chainHash
-}
-
-// Current returns the current round for that network at the given date.
-func (n *Network) Current(date time.Time) uint64 {
-	return chain.CurrentRound(date.Unix(), n.period, n.genesis)
 }
 
 // PublicKey returns the kyber point needed for encryption and decryption.
