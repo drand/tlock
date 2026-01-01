@@ -79,6 +79,12 @@ func run() error {
 		}
 	case flags.Decrypt:
 		err = tlock.New(network).Decrypt(dst, src)
+	case flags.Status:
+		err = commands.CheckStatus(flags, network)
+	case flags.BatchEncrypt:
+		err = commands.BatchEncrypt(flags, network)
+	case flags.BatchDecrypt:
+		err = commands.BatchDecrypt(flags, network)
 	default:
 		err = commands.Encrypt(flags, dst, src, network)
 	}
