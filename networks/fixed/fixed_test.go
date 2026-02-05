@@ -69,7 +69,13 @@ func TestNetwork_ChainHash(t *testing.T) {
 		fields fields
 		want   string
 	}{
-		// TODO: Add test cases.
+		{
+			name: "returns configured chain hash",
+			fields: fields{
+				chainHash: "test-chain-hash",
+			},
+			want: "test-chain-hash",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,7 +112,28 @@ func TestNetwork_Current(t *testing.T) {
 		args   args
 		want   uint64
 	}{
-		// TODO: Add test cases.
+		{
+			name: "at genesis is round 1",
+			fields: fields{
+				period:  30 * time.Second,
+				genesis: 1_600_000_000,
+			},
+			args: args{
+				date: time.Unix(1_600_000_000, 0),
+			},
+			want: 1,
+		},
+		{
+			name: "one period after genesis is round 2",
+			fields: fields{
+				period:  30 * time.Second,
+				genesis: 1_600_000_000,
+			},
+			args: args{
+				date: time.Unix(1_600_000_000+30, 0),
+			},
+			want: 2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -134,12 +161,23 @@ func TestNetwork_PublicKey(t *testing.T) {
 		genesis   int64
 		fixedSig  []byte
 	}
+
+	sch, err := crypto.SchemeFromName(crypto.UnchainedSchemeID)
+	require.NoError(t, err)
+	pub := sch.KeyGroup.Point()
+
 	tests := []struct {
 		name   string
 		fields fields
 		want   kyber.Point
 	}{
-		// TODO: Add test cases.
+		{
+			name: "returns configured public key",
+			fields: fields{
+				publicKey: pub,
+			},
+			want: pub,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -176,7 +214,28 @@ func TestNetwork_RoundNumber(t *testing.T) {
 		args   args
 		want   uint64
 	}{
-		// TODO: Add test cases.
+		{
+			name: "at genesis is round 1",
+			fields: fields{
+				period:  10 * time.Second,
+				genesis: 1_700_000_000,
+			},
+			args: args{
+				t: time.Unix(1_700_000_000, 0),
+			},
+			want: 1,
+		},
+		{
+			name: "two periods after genesis is round 3",
+			fields: fields{
+				period:  10 * time.Second,
+				genesis: 1_700_000_000,
+			},
+			args: args{
+				t: time.Unix(1_700_000_000+2*10, 0),
+			},
+			want: 3,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -209,7 +268,13 @@ func TestNetwork_Scheme(t *testing.T) {
 		fields fields
 		want   crypto.Scheme
 	}{
-		// TODO: Add test cases.
+		{
+			name: "returns scheme value copy",
+			fields: fields{
+				scheme: &crypto.Scheme{},
+			},
+			want: crypto.Scheme{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -245,7 +310,13 @@ func TestNetwork_SetSignature(t *testing.T) {
 		fields fields
 		args   args
 	}{
-		// TODO: Add test cases.
+		{
+			name:   "sets fixed signature used by Signature",
+			fields: fields{},
+			args: args{
+				sig: []byte{0x01, 0x02, 0x03},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -258,6 +329,10 @@ func TestNetwork_SetSignature(t *testing.T) {
 				fixedSig:  tt.fields.fixedSig,
 			}
 			n.SetSignature(tt.args.sig)
+
+			got, err := n.Signature(0)
+			require.NoError(t, err)
+			require.Equal(t, tt.args.sig, got)
 		})
 	}
 }
@@ -281,7 +356,28 @@ func TestNetwork_Signature(t *testing.T) {
 		want    []byte
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "no signature set returns nil without error",
+			fields: fields{
+				fixedSig: nil,
+			},
+			args: args{
+				in0: 0,
+			},
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "returns fixed signature without error",
+			fields: fields{
+				fixedSig: []byte{0xaa, 0xbb},
+			},
+			args: args{
+				in0: 42,
+			},
+			want:    []byte{0xaa, 0xbb},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -323,7 +419,16 @@ func TestNetwork_SwitchChainHash(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "updates chain hash without error",
+			fields: fields{
+				chainHash: "old-hash",
+			},
+			args: args{
+				c: "new-hash",
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -337,6 +442,11 @@ func TestNetwork_SwitchChainHash(t *testing.T) {
 			}
 			if err := n.SwitchChainHash(tt.args.c); (err != nil) != tt.wantErr {
 				t.Errorf("SwitchChainHash() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && n.ChainHash() != tt.args.c {
+				t.Errorf("SwitchChainHash() chainHash = %v, want %v", n.ChainHash(), tt.args.c)
 			}
 		})
 	}
@@ -351,24 +461,54 @@ func TestNewNetwork(t *testing.T) {
 		genesis   int64
 		sig       []byte
 	}
+	supportedScheme, err := crypto.SchemeFromName(crypto.UnchainedSchemeID)
+	require.NoError(t, err)
+
 	tests := []struct {
-		name    string
-		args    args
-		want    *Network
-		wantErr bool
+		name        string
+		args        args
+		wantErr     bool
+		wantErrType error
 	}{
-		// TODO: Add test cases.
+		{
+			name: "supported scheme succeeds",
+			args: args{
+				chainHash: "some-chain",
+				sch:       supportedScheme,
+				period:    30 * time.Second,
+				genesis:   1_600_000_000,
+			},
+			wantErr:     false,
+			wantErrType: nil,
+		},
+		{
+			name: "unsupported scheme returns ErrNotUnchained",
+			args: args{
+				chainHash: "some-chain",
+				sch: &crypto.Scheme{
+					Name: "unsupported-scheme",
+				},
+				period:  30 * time.Second,
+				genesis: 1_600_000_000,
+			},
+			wantErr:     true,
+			wantErrType: ErrNotUnchained,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := NewNetwork(tt.args.chainHash, tt.args.publicKey, tt.args.sch, tt.args.period, tt.args.genesis, tt.args.sig)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NewNetwork() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.ErrorIs(t, err, tt.wantErrType)
+				require.Nil(t, got)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewNetwork() got = %v, want %v", got, tt.want)
-			}
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			require.Equal(t, tt.args.chainHash, got.ChainHash())
+			require.Equal(t, tt.args.period, got.period)
+			require.Equal(t, tt.args.genesis, got.genesis)
 		})
 	}
 }
