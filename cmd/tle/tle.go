@@ -48,7 +48,9 @@ func run() error {
 			return fmt.Errorf("failed to open input file %q: %v", name, err)
 		}
 		defer func(f *os.File) {
-			err = f.Close()
+			if closeErr := f.Close(); closeErr != nil && err == nil {
+				err = fmt.Errorf("close input file: %w", closeErr)
+			}
 		}(f)
 		src = f
 	}
@@ -60,7 +62,9 @@ func run() error {
 			return fmt.Errorf("failed to open output file %q: %v", name, err)
 		}
 		defer func(f *os.File) {
-			err = f.Close()
+			if closeErr := f.Close(); closeErr != nil && err == nil {
+				err = fmt.Errorf("close output file: %w", closeErr)
+			}
 		}(f)
 		dst = f
 	}

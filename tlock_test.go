@@ -388,6 +388,45 @@ UnBmtsw6U2LlKh8iDf0E1PfwDenmKFfQaAGm0WLxdlzP8Q==
 	})
 }
 
+func TestBytesToCiphertext_MalformedInput(t *testing.T) {
+	network, err := fixed.FromInfo(`{"public_key":"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a","period":3,"genesis_time":1692803367,"genesis_seed":"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e","chain_hash":"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971","scheme":"bls-unchained-g1-rfc9380","beacon_id":"quicknet"}`)
+	require.NoError(t, err)
+	scheme := network.Scheme()
+	kyberPointLen := scheme.KeyGroup.PointLen()
+	validLen := kyberPointLen + 16 + 16
+
+	tests := []struct {
+		name   string
+		input  []byte
+		substr string
+	}{
+		{"truncated missing W", make([]byte, kyberPointLen+16), "incorrect length"},
+		{"empty", nil, "incorrect length"},
+		{"too long", make([]byte, validLen+10), "incorrect length"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tlock.BytesToCiphertext(scheme, tt.input)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.substr, "error should be explicit about length")
+			require.Contains(t, err.Error(), "got", "crypto errors should include actual value")
+		})
+	}
+}
+
+func TestDecrypt_PeekShortRead(t *testing.T) {
+	network, err := fixed.FromInfo(`{"public_key":"83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a","period":3,"genesis_time":1692803367,"genesis_seed":"f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e","chain_hash":"52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971","scheme":"bls-unchained-g1-rfc9380","beacon_id":"quicknet"}`)
+	require.NoError(t, err)
+
+	// input shorter than armor header (32 bytes); Peek will fail/short-read
+	// should fallback to non-armor path and age.Decrypt will return error
+	shortInput := strings.NewReader("short")
+	var dst bytes.Buffer
+
+	err = tlock.New(network).Decrypt(&dst, shortInput)
+	require.Error(t, err, "short input should not panic; Decrypt should return age error")
+}
+
 func TestInteropWithJS(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping network-dependent tests in short mode")
