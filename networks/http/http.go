@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,14 +40,26 @@ type Network struct {
 	genesis   int64
 }
 
-// NewNetwork constructs a network for use that will use the http client.
-func NewNetwork(host string, chainHash string) (*Network, error) {
+func normalizeHost(host string) (string, error) {
 	if !strings.HasPrefix(host, "http") {
 		host = "https://" + host
 	}
-	_, err := url.Parse(host + "/" + chainHash)
+	u, err := url.Parse(host)
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("parsing host url: %w", err)
+	}
+	// Ensure this is a proper absolute URL and not just a path.
+	if u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("parsing host url: missing scheme or host in %q", host)
+	}
+	return host, nil
+}
+
+// NewNetwork constructs a network for use that will use the http client.
+func NewNetwork(host string, chainHash string) (*Network, error) {
+	host, err := normalizeHost(host)
+	if err != nil {
+		return nil, err
 	}
 
 	hash, err := hex.DecodeString(chainHash)
@@ -70,7 +81,7 @@ func NewNetwork(host string, chainHash string) (*Network, error) {
 	}
 
 	if info.HashString() != chainHash {
-		return nil, fmt.Errorf("chain hash mistmatch: (requested) %s!=%s (received)", chainHash, info.HashString())
+		return nil, fmt.Errorf("chain hash mismatch: (requested) %s!=%s (received)", chainHash, info.HashString())
 	}
 
 	sch, err := crypto.SchemeFromName(info.Scheme)

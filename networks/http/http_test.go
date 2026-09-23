@@ -56,3 +56,34 @@ func TestNetwork_ChainHash(t *testing.T) {
 		})
 	}
 }
+
+func TestNewNetwork_InvalidInputsReturnError(t *testing.T) {
+	tests := []struct {
+		name      string
+		host      string
+		chainHash string
+	}{
+		{
+			name:      "invalid host url (parse error)",
+			host:      "http://%",
+			chainHash: "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+		},
+		{
+			name:      "invalid host url (missing host)",
+			host:      "https://",
+			chainHash: "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+		},
+		{
+			name:      "invalid chain hash hex",
+			host:      "api.drand.sh",
+			chainHash: "not-hex",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewNetwork(tt.host, tt.chainHash)
+			require.Error(t, err)
+		})
+	}
+}
