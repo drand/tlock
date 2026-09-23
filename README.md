@@ -3,7 +3,7 @@
 tlock gives you time based encryption and decryption capabilities by relying on a [drand](https://drand.love/) threshold network as described in [our tlock paper](https://eprint.iacr.org/2023/189).
 It is implemented here as a Go library, which is used to implement the `tle` command line tool enabling anybody to leverage timelock encryption. A compatible Typescript implementation can be found in [tlock-js](https://github.com/drand/tlock-js/) and a third-party implementation in Rust is available at [tlock-rs](https://github.com/thibmeu/tlock-rs).
 
-Our timelock encryption system relies on an "[unchained drand network](https://drand.love/blog/2022/02/21/multi-frequency-support-and-timelock-encryption-capabilities/)".
+Our timelock encryption system relies on an "[unchained drand network](https://docs.drand.love/blog/2022/02/21/multi-frequency-support-and-timelock-encryption-capabilities/)".
 
 Working endpoints to access it are, on mainnet:
 - https://api.drand.sh/ (US)
@@ -264,7 +264,7 @@ Please note that neither BLS nor the IBE scheme we are relying on are "quantum r
 
 However, such a quantum computer seems unlikely to be built within the next 5-10 years and therefore we currently consider that you can expect a "**long term security**" horizon of at least 5 years by relying on our design.
 
-Finally, relying on the League of Entropy **Testnet** should not be considered secure and be used only for testing purposes. We recommend relying on the League of Entropy `fastnet` beacon chain running on **Mainnet** for securing timelocked content.
+Finally, relying on the League of Entropy **Testnet** should not be considered secure and be used only for testing purposes. We recommend relying on the League of Entropy `quicknet` beacon chain running on **Mainnet** for securing timelocked content.
 
 Our timelock scheme and code was reviewed by cryptography and security experts from Kudelski and the report is available on IPFS at [`QmWQvTdiD3fSwJgasPLppHZKP6SMvsuTUnb1vRP2xM7y4m`](https://ipfs.io/ipfs/QmWQvTdiD3fSwJgasPLppHZKP6SMvsuTUnb1vRP2xM7y4m).
 
