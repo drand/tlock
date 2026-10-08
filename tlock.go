@@ -89,7 +89,8 @@ func (t Tlock) Encrypt(dst io.Writer, src io.Reader, roundNumber uint64) (err er
 func (t Tlock) Decrypt(dst io.Writer, src io.Reader) error {
 	rr := bufio.NewReader(src)
 
-	if start, _ := rr.Peek(len(armor.Header)); string(start) == armor.Header {
+	start, err := rr.Peek(len(armor.Header))
+	if err == nil && string(start) == armor.Header {
 		src = armor.NewReader(rr)
 	} else {
 		src = rr
@@ -223,6 +224,8 @@ func TimeUnlock(scheme crypto.Scheme, publicKey kyber.Point, beacon chain.Beacon
 // =============================================================================
 
 // These constants define the size of the different CipherDEK fields.
+// cipherWLen is distinct from cipherVLen even if equal; keep constants separate
+// to preserve format invariants.
 const (
 	cipherVLen = 16
 	cipherWLen = 16
@@ -261,10 +264,10 @@ func BytesToCiphertext(scheme crypto.Scheme, b []byte) (*ibe.Ciphertext, error) 
 	cipherV := make([]byte, cipherVLen)
 	copy(cipherV, b[kyberPointLen:kyberPointLen+cipherVLen])
 
-	cipherW := make([]byte, cipherVLen)
+	cipherW := make([]byte, cipherWLen)
 	copy(cipherW, b[kyberPointLen+cipherVLen:])
-	if len(b[kyberPointLen+cipherVLen:]) != cipherVLen {
-		return nil, fmt.Errorf("invalid ciphertext length: %d", len(b[kyberPointLen+cipherVLen:]))
+	if len(b[kyberPointLen+cipherVLen:]) != cipherWLen {
+		return nil, fmt.Errorf("invalid ciphertext W length: got %d, want %d", len(b[kyberPointLen+cipherVLen:]), cipherWLen)
 	}
 
 	u := scheme.KeyGroup.Point()
