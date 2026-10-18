@@ -106,7 +106,7 @@ and its unchained network on G2 with chainhash 7672797f548f3f4748ac4bf3352fc6c6b
 Note that if you encrypted something prior to March 2023, this was the only available network and used to be the default.
 
 DURATION, when specified, expects a number followed by one of these units:
-"ns", "us" (or "µs"), "ms", "s", "m", "h", "d", "M", "y".
+"s", "m", "h", "d", "w", "M", "y".
 
 Example:
     $ tle -D 10d -o encrypted_file data_to_encrypt
@@ -124,7 +124,7 @@ Example using the testnet network and a duration of 5 seconds:
 $ tle -n="https://pl-us.testnet.drand.sh/" -c="7672797f548f3f4748ac4bf3352fc6c6b6468c9ad40ad456a397545c6e2df5bf" -D=5s -o=encrypted_data data.txt
 ```
 
-If a round (`--round/-R`) number is known, it can be used instead of the duration. The data can be decrypted only when that round becomes available in the network.
+If a round (`--round/-r`) number is known, it can be used instead of the duration. The data can be decrypted only when that round becomes available in the network.
 
 Example using an EU relay, the quicknet chainhash and a given round 123456:
 ```bash
