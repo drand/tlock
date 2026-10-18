@@ -53,7 +53,7 @@ and its unchained network on G2 with chainhash 7672797f548f3f4748ac4bf3352fc6c6b
 Note that if you encrypted something prior to March 2023, this was the only available network and used to be the default.
 
 DURATION, when specified, expects a number followed by one of these units:
-"ns", "us" (or "µs"), "ms", "s", "m", "h", "d", "M", "y".
+"s", "m", "h", "d", "w", "M", "y".
 
 Example:
     $ tle -D 10d -o encrypted_file data_to_encrypt
@@ -147,7 +147,7 @@ func parseCmdline(f *Flags) {
 
 // validateFlags performs a sanity check of the provided flag information.
 func validateFlags(f *Flags) error {
-	// only one of the three f.Metadata, f.Decrypt or f.Encrypt must be true
+	// At most one mode may be selected; no mode defaults to encryption.
 	count := 0
 	if f.Metadata {
 		count++
@@ -158,8 +158,8 @@ func validateFlags(f *Flags) error {
 	if f.Decrypt {
 		count++
 	}
-	if count != 1 {
-		return fmt.Errorf("only one of -m/--metadata, -d/--decrypt or -e/--encrypt must be passed")
+	if count > 1 {
+		return fmt.Errorf("only one of -m/--metadata, -d/--decrypt or -e/--encrypt may be passed")
 	}
 	switch {
 	case f.Metadata:
