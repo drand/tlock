@@ -137,31 +137,60 @@ func (t Tlock) Metadata(dst io.Writer) (err error) {
 // TimeLock encrypts the specified data for the given round number. The data
 // can't be decrypted until the specified round is reached by the network in use.
 func TimeLock(scheme crypto.Scheme, publicKey kyber.Point, roundNumber uint64, data []byte) (*ibe.Ciphertext, error) {
+	return TimeLockWithAdditionalData(scheme, publicKey, roundNumber, data, nil)
+}
+
+// TimeLockWithAdditionalData encrypts with additional data for replay attack prevention.
+// different AD produces different ciphertexts even for same message.
+func TimeLockWithAdditionalData(scheme crypto.Scheme, publicKey kyber.Point, roundNumber uint64, data []byte, additionalData []byte) (*ibe.Ciphertext, error) {
 	if publicKey.Equal(publicKey.Clone().Null()) {
 		return nil, ErrInvalidPublicKey
 	}
 
-	id := scheme.DigestBeacon(&chain.Beacon{
+	// Create beacon
+	beacon := &chain.Beacon{
 		Round: roundNumber,
-	})
+	}
+
+	// Get the ID from the beacon
+	id := scheme.DigestBeacon(beacon)
 
 	var cipherText *ibe.Ciphertext
 	var err error
-	switch scheme.Name {
-	case crypto.ShortSigSchemeID:
-		// the ShortSigSchemeID uses the wrong DST for G1, so we keep it for retro-compatibility
-		cipherText, err = ibe.EncryptCCAonG2(bls.NewBLS12381SuiteWithDST(bls.DefaultDomainG2(), bls.DefaultDomainG2()), publicKey, id, data)
-	case crypto.UnchainedSchemeID:
-		cipherText, err = ibe.EncryptCCAonG1(bls.NewBLS12381Suite(), publicKey, id, data)
-	case crypto.SigsOnG1ID:
-		cipherText, err = ibe.EncryptCCAonG2(bls.NewBLS12381Suite(), publicKey, id, data)
-	case crypto.BN254UnchainedOnG1SchemeID:
-		suite := bn.NewSuiteBn254()
-		suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
-		suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
-		cipherText, err = ibe.EncryptCCAonG2(suite, publicKey, id, data)
-	default:
-		return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
+
+	if len(additionalData) > 0 {
+		switch scheme.Name {
+		case crypto.ShortSigSchemeID:
+			// the ShortSigSchemeID uses the wrong DST for G1, so we keep it for retro-compatibility
+			cipherText, err = ibe.EncryptCCAonG2WithAD(bls.NewBLS12381SuiteWithDST(bls.DefaultDomainG2(), bls.DefaultDomainG2()), publicKey, id, data, additionalData)
+		case crypto.UnchainedSchemeID:
+			cipherText, err = ibe.EncryptCCAonG1WithAD(bls.NewBLS12381Suite(), publicKey, id, data, additionalData)
+		case crypto.SigsOnG1ID:
+			cipherText, err = ibe.EncryptCCAonG2WithAD(bls.NewBLS12381Suite(), publicKey, id, data, additionalData)
+		case crypto.BN254UnchainedOnG1SchemeID:
+			suite := bn.NewSuiteBn254()
+			suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			cipherText, err = ibe.EncryptCCAonG2WithAD(suite, publicKey, id, data, additionalData)
+		default:
+			return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
+		}
+	} else {
+		switch scheme.Name {
+		case crypto.ShortSigSchemeID:
+			cipherText, err = ibe.EncryptCCAonG2(bls.NewBLS12381SuiteWithDST(bls.DefaultDomainG2(), bls.DefaultDomainG2()), publicKey, id, data)
+		case crypto.UnchainedSchemeID:
+			cipherText, err = ibe.EncryptCCAonG1(bls.NewBLS12381Suite(), publicKey, id, data)
+		case crypto.SigsOnG1ID:
+			cipherText, err = ibe.EncryptCCAonG2(bls.NewBLS12381Suite(), publicKey, id, data)
+		case crypto.BN254UnchainedOnG1SchemeID:
+			suite := bn.NewSuiteBn254()
+			suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			cipherText, err = ibe.EncryptCCAonG2(suite, publicKey, id, data)
+		default:
+			return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
+		}
 	}
 
 	if err != nil {
@@ -174,50 +203,97 @@ func TimeLock(scheme crypto.Scheme, publicKey kyber.Point, roundNumber uint64, d
 // TimeUnlock decrypts the specified ciphertext for the given beacon. The
 // ciphertext can't be decrypted until the specified round is reached by the network in use.
 func TimeUnlock(scheme crypto.Scheme, publicKey kyber.Point, beacon chain.Beacon, ciphertext *ibe.Ciphertext) ([]byte, error) {
+	return TimeUnlockWithAdditionalData(scheme, publicKey, beacon, ciphertext, nil)
+}
+
+// TimeUnlockWithAdditionalData decrypts with additional data verification.
+// wrong AD fails at cryptographic level during rP check.
+func TimeUnlockWithAdditionalData(scheme crypto.Scheme, publicKey kyber.Point, beacon chain.Beacon, ciphertext *ibe.Ciphertext, additionalData []byte) ([]byte, error) {
+	// Verify the beacon first
 	if err := scheme.VerifyBeacon(&beacon, publicKey); err != nil {
 		return nil, fmt.Errorf("verify beacon: %w", err)
 	}
 
-	var data []byte
+	var decryptedData []byte
 	var err error
-	switch scheme.Name {
-	case crypto.ShortSigSchemeID:
-		var signature bls.KyberG1
-		if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
-			return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+
+	if len(additionalData) > 0 {
+		switch scheme.Name {
+		case crypto.ShortSigSchemeID:
+			var signature bls.KyberG1
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+			}
+			suite := bls.NewBLS12381SuiteWithDST(bls.DefaultDomainG2(), bls.DefaultDomainG2())
+			decryptedData, err = ibe.DecryptCCAonG2WithAD(suite, &signature, ciphertext, additionalData)
+		case crypto.UnchainedSchemeID:
+			var signature bls.KyberG2
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+			}
+			suite := bls.NewBLS12381Suite()
+			decryptedData, err = ibe.DecryptCCAonG1WithAD(suite, &signature, ciphertext, additionalData)
+		case crypto.SigsOnG1ID:
+			var signature bls.KyberG1
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+			}
+			suite := bls.NewBLS12381Suite()
+			decryptedData, err = ibe.DecryptCCAonG2WithAD(suite, &signature, ciphertext, additionalData)
+		case crypto.BN254UnchainedOnG1SchemeID:
+			suite := bn.NewSuiteBn254()
+			suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			signature := suite.G1().Point()
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+			}
+			decryptedData, err = ibe.DecryptCCAonG2WithAD(suite, signature, ciphertext, additionalData)
+		default:
+			return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
 		}
-		// the ShortSigSchemeID uses the wrong DST for G1, so we keep it for retro-compatibility
-		data, err = ibe.DecryptCCAonG2(bls.NewBLS12381SuiteWithDST(bls.DefaultDomainG2(), bls.DefaultDomainG2()), &signature, ciphertext)
-	case crypto.UnchainedSchemeID:
-		var signature bls.KyberG2
-		if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
-			return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+	} else {
+		switch scheme.Name {
+		case crypto.ShortSigSchemeID:
+			var signature bls.KyberG1
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+			}
+			suite := bls.NewBLS12381SuiteWithDST(bls.DefaultDomainG2(), bls.DefaultDomainG2())
+			decryptedData, err = ibe.DecryptCCAonG2(suite, &signature, ciphertext)
+		case crypto.UnchainedSchemeID:
+			var signature bls.KyberG2
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G2: %w", err)
+			}
+			suite := bls.NewBLS12381Suite()
+			decryptedData, err = ibe.DecryptCCAonG1(suite, &signature, ciphertext)
+		case crypto.SigsOnG1ID:
+			var signature bls.KyberG1
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+			}
+			suite := bls.NewBLS12381Suite()
+			decryptedData, err = ibe.DecryptCCAonG2(suite, &signature, ciphertext)
+		case crypto.BN254UnchainedOnG1SchemeID:
+			suite := bn.NewSuiteBn254()
+			suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
+			signature := suite.G1().Point()
+			if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
+				return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
+			}
+			decryptedData, err = ibe.DecryptCCAonG2(suite, signature, ciphertext)
+		default:
+			return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
 		}
-		data, err = ibe.DecryptCCAonG1(bls.NewBLS12381Suite(), &signature, ciphertext)
-	case crypto.SigsOnG1ID:
-		var signature bls.KyberG1
-		if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
-			return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
-		}
-		data, err = ibe.DecryptCCAonG2(bls.NewBLS12381Suite(), &signature, ciphertext)
-	case crypto.BN254UnchainedOnG1SchemeID:
-		suite := bn.NewSuiteBn254()
-		suite.SetDomainG1([]byte("BLS_SIG_BN254G1_XMD:KECCAK-256_SVDW_RO_NUL_"))
-		suite.SetDomainG2([]byte("BLS_SIG_BN254G2_XMD:KECCAK-256_SVDW_RO_NUL_"))
-		signature := suite.G1().Point()
-		if err := signature.UnmarshalBinary(beacon.Signature); err != nil {
-			return nil, fmt.Errorf("unmarshal kyber G1: %w", err)
-		}
-		data, err = ibe.DecryptCCAonG2(suite, signature, ciphertext)
-	default:
-		return nil, fmt.Errorf("unsupported drand scheme '%s'", scheme.Name)
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("decrypt dek: %w", err)
 	}
 
-	return data, nil
+	return decryptedData, nil
 }
 
 // =============================================================================
